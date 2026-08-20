@@ -1,0 +1,7 @@
+tests/test_output
+test_output
+
+last_build/circuits
+last_build/executables
+# compiled setup helper (regenerate with: go build ./cmd/setup/generate_h_parameter)
+cmd/setup/generate_h_parameter/h_generator
