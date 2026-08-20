@@ -1,0 +1,91 @@
+name: Publish to Public ECR
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to publish'
+        required: true
+        type: choice
+        options:
+          - rayls-gnark-api
+      tag:
+        description: 'Image tag to publish (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  authorize:
+    name: Authorize publish request
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check if user is allowed to publish
+        run: |
+          ALLOWED_USERS="${{ vars.PUBLISH_ALLOWED_USERS }}"
+          ACTOR="${{ github.actor }}"
+          if echo "$ALLOWED_USERS" | tr ',' '\n' | grep -qx "$ACTOR"; then
+            echo "User $ACTOR is authorized to publish."
+          else
+            echo "::error::User $ACTOR is not authorized to publish. Allowed users: $ALLOWED_USERS"
+            exit 1
+          fi
+
+  publish:
+    name: Publish ${{ inputs.service }}:${{ inputs.tag }} to Public ECR
+    runs-on: ubuntu-22.04
+    needs: authorize
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ECR_PRIVATE_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION_PRIVATE }}.amazonaws.com
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION_PRIVATE }}
+
+      - name: Login to Amazon ECR (Private)
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Verify image exists in private ECR
+        run: |
+          echo "Checking if ${{ inputs.service }}:${{ inputs.tag }} exists in private ECR..."
+          aws ecr describe-images \
+            --repository-name ${{ inputs.service }} \
+            --image-ids imageTag=${{ inputs.tag }} \
+            || (echo "Image not found in private ECR!" && exit 1)
+
+      - name: Pull image from private ECR
+        run: |
+          docker pull ${{ env.ECR_PRIVATE_REGISTRY }}/${{ inputs.service }}:${{ inputs.tag }}
+
+      - name: Tag image for public ECR
+        run: |
+          docker tag \
+            ${{ env.ECR_PRIVATE_REGISTRY }}/${{ inputs.service }}:${{ inputs.tag }} \
+            ${{ vars.ECR_PUBLIC_REGISTRY }}/${{ inputs.service }}:${{ inputs.tag }}
+
+      - name: Configure AWS credentials for Public ECR (OIDC)
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION_PUBLIC }}
+
+      - name: Login to Amazon ECR Public
+        run: |
+          aws ecr-public get-login-password --region ${{ vars.AWS_REGION_PUBLIC }} | \
+            docker login --username AWS --password-stdin public.ecr.aws
+
+      - name: Push to public ECR
+        run: |
+          docker push ${{ vars.ECR_PUBLIC_REGISTRY }}/${{ inputs.service }}:${{ inputs.tag }}
+
+      - name: Summary
+        run: |
+          echo "## Published to Public ECR" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Service:** ${{ inputs.service }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ vars.ECR_PUBLIC_REGISTRY }}/${{ inputs.service }}:${{ inputs.tag }}\`" >> $GITHUB_STEP_SUMMARY

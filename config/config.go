@@ -1,0 +1,125 @@
+package config
+
+type Config struct {
+	Port                 string
+	Enygmak2Pk           string
+	Enygmak2Vk           string
+	Enygmak2R1cs         string
+	Enygmak3Pk           string
+	Enygmak3Vk           string
+	Enygmak3R1cs         string
+	Enygmak4Pk           string
+	Enygmak4Vk           string
+	Enygmak4R1cs         string
+	Enygmak5Pk           string
+	Enygmak5Vk           string
+	Enygmak5R1cs         string
+	Enygmak6Pk           string
+	Enygmak6Vk           string
+	Enygmak6R1cs         string
+	Withdrawk2Pk         string
+	Withdrawk2Vk         string
+	Withdrawk2R1cs       string
+	Withdrawk3Pk         string
+	Withdrawk3Vk         string
+	Withdrawk3R1cs       string
+	Withdrawk4Pk         string
+	Withdrawk4Vk         string
+	Withdrawk4R1cs       string
+	Withdrawk5Pk         string
+	Withdrawk5Vk         string
+	Withdrawk5R1cs       string
+	Withdrawk6Pk         string
+	Withdrawk6Vk         string
+	Withdrawk6R1cs       string
+	Depositk2Pk          string
+	Depositk2Vk          string
+	Depositk2R1cs        string
+	Depositk3Pk          string
+	Depositk3Vk          string
+	Depositk3R1cs        string
+	Depositk4Pk          string
+	Depositk4Vk          string
+	Depositk4R1cs        string
+	Depositk5Pk          string
+	Depositk5Vk          string
+	Depositk5R1cs        string
+	Depositk6Pk          string
+	Depositk6Vk          string
+	Depositk6R1cs        string
+	EnygmaJoinSplitPk    string
+	EnygmaJoinSplitVk    string
+	EnygmaJoinSplitR1cs  string
+	Erc721OwnershipPk    string
+	Erc721OwnershipVk    string
+	Erc721OwnershipR1cs  string
+	Erc1155JoinSplitPk   string
+	Erc1155JoinSplitVk   string
+	Erc1155JoinSplitR1cs string
+}
+
+func Load() *Config {
+	return &Config{
+		Port: "3003",
+		// Enygma
+		Enygmak2Pk:   "./last_build/keys/Enygmak2Pk.key",
+		Enygmak2Vk:   "./last_build/keys/Enygmak2Vk.key",
+		Enygmak2R1cs: "./last_build/circuits/Enygmak2.r1cs",
+		Enygmak3Pk:   "./last_build/keys/Enygmak3Pk.key",
+		Enygmak3Vk:   "./last_build/keys/Enygmak3Vk.key",
+		Enygmak3R1cs: "./last_build/circuits/Enygmak3.r1cs",
+		Enygmak4Pk:   "./last_build/keys/Enygmak4Pk.key",
+		Enygmak4Vk:   "./last_build/keys/Enygmak4Vk.key",
+		Enygmak4R1cs: "./last_build/circuits/Enygmak4.r1cs",
+		Enygmak5Pk:   "./last_build/keys/Enygmak5Pk.key",
+		Enygmak5Vk:   "./last_build/keys/Enygmak5Vk.key",
+		Enygmak5R1cs: "./last_build/circuits/Enygmak5.r1cs",
+		Enygmak6Pk:   "./last_build/keys/Enygmak6Pk.key",
+		Enygmak6Vk:   "./last_build/keys/Enygmak6Vk.key",
+		Enygmak6R1cs: "./last_build/circuits/Enygmak6.r1cs",
+		// Withdraw
+		Withdrawk2Pk:   "./last_build/keys/Withdrawk2Pk.key",
+		Withdrawk2Vk:   "./last_build/keys/Withdrawk2Vk.key",
+		Withdrawk2R1cs: "./last_build/circuits/Withdrawk2.r1cs",
+		Withdrawk3Pk:   "./last_build/keys/Withdrawk3Pk.key",
+		Withdrawk3Vk:   "./last_build/keys/Withdrawk3Vk.key",
+		Withdrawk3R1cs: "./last_build/circuits/Withdrawk3.r1cs",
+		Withdrawk4Pk:   "./last_build/keys/Withdrawk4Pk.key",
+		Withdrawk4Vk:   "./last_build/keys/Withdrawk4Vk.key",
+		Withdrawk4R1cs: "./last_build/circuits/Withdrawk4.r1cs",
+		Withdrawk5Pk:   "./last_build/keys/Withdrawk5Pk.key",
+		Withdrawk5Vk:   "./last_build/keys/Withdrawk5Vk.key",
+		Withdrawk5R1cs: "./last_build/circuits/Withdrawk5.r1cs",
+		Withdrawk6Pk:   "./last_build/keys/Withdrawk6Pk.key",
+		Withdrawk6Vk:   "./last_build/keys/Withdrawk6Vk.key",
+		Withdrawk6R1cs: "./last_build/circuits/Withdrawk6.r1cs",
+		// Deposit
+		Depositk2Pk:   "./last_build/keys/Depositk2Pk.key",
+		Depositk2Vk:   "./last_build/keys/Depositk2Vk.key",
+		Depositk2R1cs: "./last_build/circuits/Depositk2.r1cs",
+		Depositk3Pk:   "./last_build/keys/Depositk3Pk.key",
+		Depositk3Vk:   "./last_build/keys/Depositk3Vk.key",
+		Depositk3R1cs: "./last_build/circuits/Depositk3.r1cs",
+		Depositk4Pk:   "./last_build/keys/Depositk4Pk.key",
+		Depositk4Vk:   "./last_build/keys/Depositk4Vk.key",
+		Depositk4R1cs: "./last_build/circuits/Depositk4.r1cs",
+		Depositk5Pk:   "./last_build/keys/Depositk5Pk.key",
+		Depositk5Vk:   "./last_build/keys/Depositk5Vk.key",
+		Depositk5R1cs: "./last_build/circuits/Depositk5.r1cs",
+		Depositk6Pk:   "./last_build/keys/Depositk6Pk.key",
+		Depositk6Vk:   "./last_build/keys/Depositk6Vk.key",
+		Depositk6R1cs: "./last_build/circuits/Depositk6.r1cs",
+		// Enygma Join-Split
+		EnygmaJoinSplitPk:   "./last_build/keys/EnygmaJoinSplitPk.key",
+		EnygmaJoinSplitVk:   "./last_build/keys/EnygmaJoinSplitVk.key",
+		EnygmaJoinSplitR1cs: "./last_build/circuits/EnygmaJoinSplit.r1cs",
+		// Erc-721 Ownership
+		Erc721OwnershipPk:   "./last_build/keys/Erc721OwnershipPk.key",
+		Erc721OwnershipVk:   "./last_build/keys/Erc721OwnershipVk.key",
+		Erc721OwnershipR1cs: "./last_build/circuits/Erc721Ownership.r1cs",
+		// Erc-1155 Join-Split
+		Erc1155JoinSplitPk:   "./last_build/keys/Erc1155JoinSplitPk.key",
+		Erc1155JoinSplitVk:   "./last_build/keys/Erc1155JoinSplitVk.key",
+		Erc1155JoinSplitR1cs: "./last_build/circuits/Erc1155JoinSplit.r1cs",
+	}
+}

@@ -1,0 +1,162 @@
+name: Build & Publish Gnark API
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  IMAGE_NAME: rayls-gnark-api
+  DOCKERFILE: Dockerfile
+
+jobs:
+  build-and-push:
+    name: Build and Push to ECR
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+    env:
+      ECR_PRIVATE_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION_PRIVATE }}.amazonaws.com
+      GIT_LFS_SKIP_SMUDGE: '1'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          lfs: false
+
+      - name: Install Git LFS and pull files
+        run: |
+          git lfs install --local
+          git lfs pull
+
+      - name: Verify LFS files downloaded
+        run: |
+          echo "Checking LFS files..."
+          file last_build/keys/Enygmak6Pk.key
+          ls -lh last_build/keys/*.key | head -5
+
+      - name: Extract tag name
+        id: meta
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          echo "version=$TAG" >> $GITHUB_OUTPUT
+          echo "Building image with tag: $TAG"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION_PRIVATE }}
+
+      - name: Login to Amazon ECR (Private)
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Create ECR repository if not exists
+        run: |
+          aws ecr describe-repositories --repository-names ${{ env.IMAGE_NAME }} || \
+          aws ecr create-repository --repository-name ${{ env.IMAGE_NAME }}
+
+      - name: Build and push to private ECR
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: ./${{ env.DOCKERFILE }}
+          push: true
+          tags: ${{ env.ECR_PRIVATE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-22.04
+    needs: build-and-push
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ECR_PRIVATE_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION_PRIVATE }}.amazonaws.com
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION_PRIVATE }}
+
+      - name: Login to Amazon ECR (Private)
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          image-ref: ${{ env.ECR_PRIVATE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image-tag }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          scanners: 'vuln,misconfig'
+          severity: 'HIGH,CRITICAL'
+
+  # ===========================================================================
+  # PUBLISH TO PUBLIC ECR
+  # Requires GitHub Environments with required reviewers (available for public
+  # repos or GitHub Team/Enterprise). Uncomment when repository goes public.
+  # ===========================================================================
+  # publish-to-public:
+  #   name: Publish to Public ECR
+  #   runs-on: ubuntu-22.04
+  #   needs: security-scan
+  #   environment: PublishToCustomers  # Requires manual approval
+  #   permissions:
+  #     contents: read
+  #     id-token: write
+  #   env:
+  #     ECR_PRIVATE_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION_PRIVATE }}.amazonaws.com
+  #   steps:
+  #     - name: Configure AWS credentials (OIDC)
+  #       uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+  #       with:
+  #         role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+  #         aws-region: ${{ vars.AWS_REGION_PRIVATE }}
+  #
+  #     - name: Login to Amazon ECR (Private)
+  #       uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+  #
+  #     - name: Pull image from private ECR
+  #       run: |
+  #         docker pull ${{ env.ECR_PRIVATE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image-tag }}
+  #
+  #     - name: Tag image for public ECR
+  #       run: |
+  #         docker tag \
+  #           ${{ env.ECR_PRIVATE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image-tag }} \
+  #           ${{ vars.ECR_PUBLIC_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image-tag }}
+  #
+  #     - name: Configure AWS credentials for Public ECR (OIDC)
+  #       uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+  #       with:
+  #         role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+  #         aws-region: ${{ vars.AWS_REGION_PUBLIC }}
+  #
+  #     - name: Login to Amazon ECR Public
+  #       run: |
+  #         aws ecr-public get-login-password --region ${{ vars.AWS_REGION_PUBLIC }} | \
+  #           docker login --username AWS --password-stdin public.ecr.aws
+  #
+  #     - name: Push to public ECR
+  #       run: |
+  #         docker push ${{ vars.ECR_PUBLIC_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image-tag }}
+  #
+  #     - name: Summary
+  #       run: |
+  #         echo "## Published to Public ECR" >> $GITHUB_STEP_SUMMARY
+  #         echo "" >> $GITHUB_STEP_SUMMARY
+  #         echo "**Service:** ${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+  #         echo "**Tag:** ${{ needs.build-and-push.outputs.image-tag }}" >> $GITHUB_STEP_SUMMARY
+  #         echo "**Image:** \`${{ vars.ECR_PUBLIC_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
