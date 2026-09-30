@@ -150,6 +150,7 @@ func circuitLogic(
 	// Range Proof: sender_tx_value >= 0
 	//api.Println("\n--- Range Proof ---")
 	common.CheckRangeProofVOnly(api, sender_tx_value)
+	common.CheckReceiverAmounts(api, k, senderId, anonymity_set, txValue)
 
 	///////////////////////////////////**//////////////////////////////////////
 	// Knowledge of Nullifier

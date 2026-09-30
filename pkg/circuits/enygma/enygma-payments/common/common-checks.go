@@ -100,32 +100,33 @@ func CheckPreviousCommitmentKnowledge(api frontend.API, k int, senderId frontend
 	api.AssertIsEqual(selectedPreviousCommitmentY, computedPreviousCommitment.Y)
 }
 
-// CheckRangeProofWithPreviousV verifies previousV >= sender_tx_value and sender_tx_value >= 0
+// MaxAmountBits bounds every balance and amount. Pedersen values are only
+// defined mod the subgroup order l (~2^251), so without a bound well below l a
+// balance B can be opened as B + l, and a "negative" amount l - x passes as
+// positive. With k <= 6 values below 2^128, no sum can wrap mod l.
+const MaxAmountBits = 128
+
+// CheckRangeProofWithPreviousV verifies 0 <= sender_tx_value <= previousV < 2^MaxAmountBits
 func CheckRangeProofWithPreviousV(api frontend.API, previousV frontend.Variable, sender_tx_value frontend.Variable) {
-
-	previousVBits := api.ToBinary(previousV, 252)
-	vBits := api.ToBinary(sender_tx_value, 252)
-
-	previousVConstrained := api.FromBinary(previousVBits...)
-	vConstrained := api.FromBinary(vBits...)
-
-	// previousV >= sender_tx_value means previousV - sender_tx_value >= 0, which means Cmp(previousV, sender_tx_value) != -1
-	prevVGreaterEqualV := api.Cmp(previousVConstrained, vConstrained)
-	api.AssertIsEqual(api.IsZero(api.Add(prevVGreaterEqualV, frontend.Variable(1))), frontend.Variable(0))
-
-	// sender_tx_value >= 0 means Cmp(sender_tx_value, 0) != -1
-	vGreaterEqualZero := api.Cmp(vConstrained, frontend.Variable(0))
-	api.AssertIsEqual(api.IsZero(api.Add(vGreaterEqualZero, frontend.Variable(1))), frontend.Variable(0))
+	api.ToBinary(previousV, MaxAmountBits)
+	api.ToBinary(sender_tx_value, MaxAmountBits)
+	api.AssertIsLessOrEqual(sender_tx_value, previousV)
 }
 
-// CheckRangeProofVOnly verifies sender_tx_value >= 0 (for withdraw)
+// CheckRangeProofVOnly verifies 0 <= sender_tx_value < 2^MaxAmountBits (for withdraw)
 func CheckRangeProofVOnly(api frontend.API, sender_tx_value frontend.Variable) {
-	vBits := api.ToBinary(sender_tx_value, 252)
-	vConstrained := api.FromBinary(vBits...)
+	api.ToBinary(sender_tx_value, MaxAmountBits)
+}
 
-	// sender_tx_value >= 0 means Cmp(sender_tx_value, 0) != -1
-	vGreaterEqualZero := api.Cmp(vConstrained, frontend.Variable(0))
-	api.AssertIsEqual(api.IsZero(api.Add(vGreaterEqualZero, frontend.Variable(1))), frontend.Variable(0))
+// CheckReceiverAmounts verifies 0 <= txValue[i] < 2^MaxAmountBits for every
+// participant other than the sender, whose (possibly negated) value is checked
+// by the circuit itself. Without it, one member can be given l - x so that
+// another receives x more than the sender paid.
+func CheckReceiverAmounts(api frontend.API, k int, senderId frontend.Variable, anonymity_set []frontend.Variable, txValue []frontend.Variable) {
+	for i := 0; i < k; i++ {
+		isReceiver := api.Sub(1, api.IsZero(api.Sub(anonymity_set[i], senderId)))
+		api.ToBinary(api.Mul(isReceiver, txValue[i]), MaxAmountBits)
+	}
 }
 
 // CheckNullifierKnowledge verifies knowledge of nullifier = Poseidon(selectedPreImage, blockNumber)

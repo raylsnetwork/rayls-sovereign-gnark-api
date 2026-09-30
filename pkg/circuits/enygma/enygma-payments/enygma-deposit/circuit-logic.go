@@ -113,6 +113,7 @@ func circuitLogic(
 	///////////////////////////////////**///////////////////////////////////
 	// Range Proof: previousV >= sender_tx_value and sender_tx_value >= 0
 	common.CheckRangeProofWithPreviousV(api, previousV, sender_tx_value)
+	common.CheckReceiverAmounts(api, k, senderId, anonymity_set, txValue)
 
 	///////////////////////////////////**//////////////////////////////////////
 	// Knowledge of Nullifier
