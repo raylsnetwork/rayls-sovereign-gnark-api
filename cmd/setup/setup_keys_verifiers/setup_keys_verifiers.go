@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	enygma_joinsplit "github.com/raylsnetwork/rayls-sovereign-gnark-api/pkg/circuits/enygma/enygma-dvp/enygma-joinsplit-dvp"
 	erc1155_joinsplit "github.com/raylsnetwork/rayls-sovereign-gnark-api/pkg/circuits/enygma/enygma-dvp/erc1155-joinsplit-dvp"
 	erc721_ownership "github.com/raylsnetwork/rayls-sovereign-gnark-api/pkg/circuits/enygma/enygma-dvp/erc721-ownership-dvp"
@@ -8,7 +9,6 @@ import (
 	"github.com/raylsnetwork/rayls-sovereign-gnark-api/pkg/circuits/enygma/enygma-payments/enygma-transfer"
 	withdraw "github.com/raylsnetwork/rayls-sovereign-gnark-api/pkg/circuits/enygma/enygma-payments/enygma-withdraw"
 	primitives "github.com/raylsnetwork/rayls-sovereign-gnark-api/primitives"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"

@@ -15,7 +15,7 @@ type Erc721OwnershipCircuit struct {
 	Nullifiers        [nInputs]frontend.Variable  `gnark:",public"`
 	TreeNumber        frontend.Variable           `gnark:",public"`
 	CommitmentsOut    [mOutputs]frontend.Variable `gnark:",public"`
-	RevertCommitment  frontend.Variable          `gnark:",public"`
+	RevertCommitment  frontend.Variable           `gnark:",public"`
 
 	// Private signals
 	PrivateKeys  [nInputs]frontend.Variable
@@ -24,9 +24,9 @@ type Erc721OwnershipCircuit struct {
 	PathElements [nInputs][merkleTreeDepth]frontend.Variable
 	PathIndices  [nInputs]frontend.Variable
 	RecipientPK  [mOutputs]frontend.Variable
-	SaltsOut      [mOutputs]frontend.Variable
-	UIdOut        [mOutputs]frontend.Variable
-	RevertSalt    frontend.Variable
+	SaltsOut     [mOutputs]frontend.Variable
+	UIdOut       [mOutputs]frontend.Variable
+	RevertSalt   frontend.Variable
 }
 
 type KeyPairIn struct {

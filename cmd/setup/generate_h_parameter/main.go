@@ -56,7 +56,8 @@ func (circuit *HSetupCircuit) Define(api frontend.API) error {
 func main() {
 	fmt.Println("=====================================")
 	fmt.Println("Baby Jubjub H Parameter Generator")
-	fmt.Println("=====================================\n")
+	fmt.Println("=====================================")
+	fmt.Println()
 
 	// Generate H point
 	fmt.Println("🔍 Searching for valid H point...")
