@@ -4,7 +4,12 @@ set -e  # Exit immediately if a command exits with a non-zero status
 
 BASE_DIR="."  # Adjust if needed
 
-go run cmd/setup/setup_keys_verifiers/setup_keys_verifiers.go
+# SKIP_KEYGEN=1 only converts the verifiers already in last_build/, e.g. the
+# ones written by `go run ./cmd/ceremony finalize`. Without it, keys come from
+# a single-party groth16.Setup and are for development only.
+if [ -z "${SKIP_KEYGEN:-}" ]; then
+    go run cmd/setup/setup_keys_verifiers/setup_keys_verifiers.go
+fi
 
 # Function to convert new verifier format to old format
 convert_verifier() {
@@ -250,6 +255,10 @@ convert_verifier() {
                 echo "File will go to Enygma-Payments directory"
             fi
             
+            # SKIP_CONTRACTS_COPY=1 leaves the verifiers in last_build/ only.
+            if [ -n "${SKIP_CONTRACTS_COPY:-}" ]; then
+                echo "  SKIP_CONTRACTS_COPY set: not copying to $target_dir"
+            else
             echo "Moving converted file to target directory..."
             # Create target directory if it doesn't exist
             if [ ! -d "$target_dir" ]; then
@@ -261,6 +270,7 @@ convert_verifier() {
             local target_file="$target_dir/$(basename "$final_file")"
             cp "$final_file" "$target_file"
             echo "  ✓ Copied to: $target_file"
+            fi
         else
             echo "  Warning: Could not determine target filename for: $output_basename"
         fi
@@ -282,6 +292,10 @@ convert_verifier() {
             fi
             
             # Create target directory if it doesn't exist
+            # SKIP_CONTRACTS_COPY=1 leaves the verifiers in last_build/ only.
+            if [ -n "${SKIP_CONTRACTS_COPY:-}" ]; then
+                echo "  SKIP_CONTRACTS_COPY set: not copying to $target_dir"
+            else
             if [ ! -d "$target_dir" ]; then
                 echo "  Creating directory: $target_dir"
                 mkdir -p "$target_dir"
@@ -291,6 +305,7 @@ convert_verifier() {
             local target_file="$target_dir/$(basename "$output_file")"
             cp "$output_file" "$target_file"
             echo "  ✓ Copied to: $target_file"
+            fi
         fi
     fi
 }
