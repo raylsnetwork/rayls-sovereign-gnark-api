@@ -1,0 +1,160 @@
+{
+  "version": 2,
+  "curve": "bn254",
+  "gnark": "v0.14.0",
+  "circuits": [
+    {
+      "name": "Enygmak2",
+      "verifier": "EnygmaVerifierk2",
+      "constraints": 43906,
+      "power": 16,
+      "r1cs_sha256": "dfdc65d2c065fdd3b0125a1bf18a2390381c48d91105f3f6376c153bef91d554"
+    },
+    {
+      "name": "Enygmak3",
+      "verifier": "EnygmaVerifierk3",
+      "constraints": 55242,
+      "power": 16,
+      "r1cs_sha256": "2145f00bcb68e39e7067bc6af71252c69def0a305b828b76bc685e952d2d9638"
+    },
+    {
+      "name": "Enygmak4",
+      "verifier": "EnygmaVerifierk4",
+      "constraints": 66578,
+      "power": 17,
+      "r1cs_sha256": "78be1a6cf1b94da2cf296cd0fb91ffef6da06c22b0eb9a0bafbdb12480de81b6"
+    },
+    {
+      "name": "Enygmak5",
+      "verifier": "EnygmaVerifierk5",
+      "constraints": 77914,
+      "power": 17,
+      "r1cs_sha256": "20452a40a5cec77366f465ce067b0c4db2c2a0055daf6779d91150352d4cf0df"
+    },
+    {
+      "name": "Enygmak6",
+      "verifier": "EnygmaVerifierk6",
+      "constraints": 89250,
+      "power": 17,
+      "r1cs_sha256": "9cf5b5459e2c09edd666f9fadd8fdec9ec46256224ddd1cedc3f5f9658f9a54b"
+    },
+    {
+      "name": "Withdrawk2",
+      "verifier": "EnygmaWithdrawFromDvpVerifierk2",
+      "constraints": 46467,
+      "power": 16,
+      "r1cs_sha256": "7842269e3684e993e7672377c946cd45b1db4112cd8aa59eac04f2c21622f1c8"
+    },
+    {
+      "name": "Withdrawk3",
+      "verifier": "EnygmaWithdrawFromDvpVerifierk3",
+      "constraints": 57791,
+      "power": 16,
+      "r1cs_sha256": "c19f21b3563d8cd0c0c0335471341678d8175aa54cc4ea136b0421c405255b97"
+    },
+    {
+      "name": "Withdrawk4",
+      "verifier": "EnygmaWithdrawFromDvpVerifierk4",
+      "constraints": 69115,
+      "power": 17,
+      "r1cs_sha256": "dc9b779e03bda06329b92b6f6fe3011df7cc410803e634949ccb686c0efa608f"
+    },
+    {
+      "name": "Withdrawk5",
+      "verifier": "EnygmaWithdrawFromDvpVerifierk5",
+      "constraints": 80439,
+      "power": 17,
+      "r1cs_sha256": "3a2a10105d51485f1b35a6d7e34034e560bb3f72e2ff6af1b4a32ff3731532d5"
+    },
+    {
+      "name": "Withdrawk6",
+      "verifier": "EnygmaWithdrawFromDvpVerifierk6",
+      "constraints": 91763,
+      "power": 17,
+      "r1cs_sha256": "b4fe359beea1815613602928efafee236a69996fd82b2c2bf578733047d50a0b"
+    },
+    {
+      "name": "Depositk2",
+      "verifier": "EnygmaDepositToDvpVerifierk2",
+      "constraints": 47879,
+      "power": 16,
+      "r1cs_sha256": "724ea0edc2725bab6ceb75f7b1d02afc7631e4112dc2bb29cf38765bb668fb45"
+    },
+    {
+      "name": "Depositk3",
+      "verifier": "EnygmaDepositToDvpVerifierk3",
+      "constraints": 59203,
+      "power": 16,
+      "r1cs_sha256": "efd330e2c3f61eb601c5464db5c2263514ba2dd6c938f15835faab69769d843d"
+    },
+    {
+      "name": "Depositk4",
+      "verifier": "EnygmaDepositToDvpVerifierk4",
+      "constraints": 70527,
+      "power": 17,
+      "r1cs_sha256": "11047b945ae2a4648e97291be83a977684bcb3c41289a649a5005cb5941986ac"
+    },
+    {
+      "name": "Depositk5",
+      "verifier": "EnygmaDepositToDvpVerifierk5",
+      "constraints": 81851,
+      "power": 17,
+      "r1cs_sha256": "7d224f9519c6e60afe366a2c5a6207606b9f1cd7371312f1807f057152994058"
+    },
+    {
+      "name": "Depositk6",
+      "verifier": "EnygmaDepositToDvpVerifierk6",
+      "constraints": 93175,
+      "power": 17,
+      "r1cs_sha256": "7b01d270fed176ee29b43c0a095d81cf8aec8d98d1d2f448c53a56db37256eed"
+    },
+    {
+      "name": "EnygmaJoinSplit",
+      "verifier": "EnygmaJoinSplitVerifier",
+      "constraints": 65980,
+      "power": 17,
+      "r1cs_sha256": "b49887490e3b4842b3115ceb3eb07504336001049d894dcb8d1a69044d31a051"
+    },
+    {
+      "name": "Erc721Ownership",
+      "verifier": "Erc721OwnershipVerifier",
+      "constraints": 6693,
+      "power": 13,
+      "r1cs_sha256": "96cb9f2a3bc61cfa889b5361611faf5c5699a3a2ba70368d17daeeb2999ce950"
+    },
+    {
+      "name": "Erc1155JoinSplit",
+      "verifier": "Erc1155JoinSplitVerifier",
+      "constraints": 69100,
+      "power": 17,
+      "r1cs_sha256": "6ccb220c0276b64a947bb8b415a516da488e478f5f88067c6ec1cffe6bcaf3d6"
+    }
+  ],
+  "phase1": {
+    "source": "https://pse-trusted-setup-ppot.s3.eu-central-1.amazonaws.com/pot28_0080/ppot_0080_17.ptau",
+    "ptau_sha256": "f807e065fde53f72f4bf4d57140fab85b26daa6cc95bdfec7cce93622b3a367c",
+    "ptau_blake2b": "3010cec42bdd1583bb4477dfa1b11853a67e8611feaa39cd7b3311a353b3e1d8b3f318509d75208078dc6887500b61f3f46bc72c61abbb624bec3bad5ef16012",
+    "power": 17,
+    "srs": [
+      {
+        "power": 17,
+        "path": "phase1/srs-17.bin",
+        "sha256": "6ee8bc22d726d3099d629bd9da29459e4d25eae7bc35e4fd415b2defafbbec15"
+      },
+      {
+        "power": 16,
+        "path": "phase1/srs-16.bin",
+        "sha256": "a731468cee361d4adcb5761961f0de751395467a599b3e3a357b75075e92b2c6"
+      },
+      {
+        "power": 13,
+        "path": "phase1/srs-13.bin",
+        "sha256": "8855dea05702cc64fdc1e0b0ceda55a1f477a865c693dc52ad1abd100002442c"
+      }
+    ]
+  },
+  "phase2": {
+    "contributions": [],
+    "releases": []
+  }
+}

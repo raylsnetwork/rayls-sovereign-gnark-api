@@ -1,1 +1,2 @@
 last_build/** filter=lfs diff=lfs merge=lfs -text
+ceremony/**/*.bin filter=lfs diff=lfs merge=lfs -text
