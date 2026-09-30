@@ -2,7 +2,6 @@ package withdraw
 
 import (
 	common "github.com/raylsnetwork/rayls-sovereign-gnark-api/pkg/circuits/enygma/enygma-payments/common"
-	pos "github.com/raylsnetwork/rayls-sovereign-gnark-api/poseidon"
 	primitives "github.com/raylsnetwork/rayls-sovereign-gnark-api/primitives"
 
 	"github.com/consensys/gnark/frontend"
@@ -28,11 +27,10 @@ func circuitLogic(
 	blockNumber frontend.Variable,
 	anonymity_set []frontend.Variable,
 	message_tags []frontend.Variable,
-	hashes []frontend.Variable,
-	sk_deposits []frontend.Variable,
-	v_per_deposit []frontend.Variable,
+	paymentCommitment frontend.Variable,
+	paymentSecretKey frontend.Variable,
+	paymentSalt frontend.Variable,
 	address frontend.Variable,
-	saltsIn []frontend.Variable,
 ) error {
 
 	// Debug: Log input parameters
@@ -45,7 +43,6 @@ func circuitLogic(
 	//api.Println("sender_tx_value (amount to withdraw):", sender_tx_value)
 	//api.Println("nullifier:", nullifier)
 	//api.Println("blockNumber:", blockNumber)
-	//api.Println("address:", address)
 
 	// Log arrays
 	for i := 0; i < k; i++ {
@@ -56,15 +53,6 @@ func circuitLogic(
 		//api.Println(fmt.Sprintf("txCommit[%d]:", i), txCommit[i][0], txCommit[i][1])
 		//api.Println(fmt.Sprintf("txValue[%d]:", i), txValue[i])
 		//api.Println(fmt.Sprintf("txRandom[%d]:", i), txRandom[i])
-	}
-
-	for i := 0; i < len(hashes); i++ {
-		//api.Println(fmt.Sprintf("hashes[%d]:", i), hashes[i])
-	}
-
-	for i := 0; i < len(sk_deposits); i++ {
-		//api.Println(fmt.Sprintf("sk_deposits[%d]:", i), sk_deposits[i])
-		//api.Println(fmt.Sprintf("v_per_deposit[%d]:", i), v_per_deposit[i])
 	}
 
 	//////////////////////////////////**///////////////////////////////////
@@ -175,47 +163,17 @@ func circuitLogic(
 	}
 
 	///////////////////////////////////**//////////////////////////////////////
-	// Components for processing multiple commitment withdraw
-	// Always process exactly 10 deposits
-	//api.Println("\n--- Processing 10 Deposits ---")
-
-	// Process each potential deposit
-	for i := 0; i < 10; i++ {
-		//api.Println(fmt.Sprintf("\nProcessing deposit %d:", i))
-		//api.Println(fmt.Sprintf("v_per_deposit[%d]:", i), v_per_deposit[i])
-		//api.Println(fmt.Sprintf("sk_deposits[%d]:", i), sk_deposits[i])
-
-		// Check if deposit value is zero
-		isDepositZero := api.IsZero(v_per_deposit[i])
-		//api.Println(fmt.Sprintf("isDepositZero[%d]:", i), isDepositZero)
-
-		publicKeyFromSk, err := primitives.PublicKey(api, sk_deposits[i])
-		if err != nil {
-			return err
-		}
-
-		// Check if Hash(commitment in Dvp - MerkleTree) is well formed (V2)
-		// V2 formula: H(H(H(publicKeyFromSk, saltsIn[i]), v_per_deposit[i]), address)
-		h1 := pos.Poseidon(api, []frontend.Variable{publicKeyFromSk, saltsIn[i]})
-		h2 := pos.Poseidon(api, []frontend.Variable{h1, v_per_deposit[i]})
-		secondHash := pos.Poseidon(api, []frontend.Variable{h2, address})
-
-		// Conditional check: if v_per_deposit[i] is zero, we skip the equality check
-		// enabled = 1 - isZero = 1 if value is NOT zero, 0 if value is zero
-		enabled := api.Sub(frontend.Variable(1), isDepositZero)
-		//api.Println(fmt.Sprintf("enabled[%d] (should check?):", i), enabled)
-
-		// ForceEqualIfEnabled equivalent:
-		// If enabled == 1, assert equality; if enabled == 0, skip assertion
-		// This can be implemented as: enabled * (hashes[i] - computedHash) == 0
-		difference := api.Sub(hashes[i], secondHash)
-		//api.Println(fmt.Sprintf("difference[%d] (hashes - secondHash):", i), difference)
-
-		conditionalDifference := api.Mul(enabled, difference)
-		//api.Println(fmt.Sprintf("conditionalDifference[%d] (should be 0):", i), conditionalDifference)
-
-		api.AssertIsEqual(conditionalDifference, frontend.Variable(0))
+	// Bind the credit to the DvP join-split that burned the notes.
+	// paymentCommitment is the join-split receipt's payment output; the contract
+	// requires the two to be equal, and the join-split circuit guarantees that
+	// output holds exactly what its nullified inputs held (minus change).
+	// Opening it here with sender_tx_value proves the credit equals that value.
+	paymentPK, err := primitives.PublicKey(api, paymentSecretKey)
+	if err != nil {
+		return err
 	}
+	computedPayment := primitives.CommitmentV2ERC20(api, paymentPK, paymentSalt, sender_tx_value, address)
+	api.AssertIsEqual(computedPayment, paymentCommitment)
 
 	//api.Println("\n=== CIRCUIT DEBUG END ===")
 	return nil
