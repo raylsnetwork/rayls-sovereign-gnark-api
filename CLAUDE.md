@@ -153,7 +153,7 @@ last_build/          - Compiled artifacts (Git LFS)
 - GOMAXPROCS tuning recommended for production
 
 ### Known Technical Debt
-- **No unit tests** - Add table-driven tests for primitives and circuit logic
+- **Partial test coverage** - Primitives and every circuit family have honest-witness and forged-witness tests (`go test ./...`); handlers and `cmd/` have none
 - **No structured logging** - Migrate from `fmt.Println` to slog with JSON output
 - **No OpenTelemetry** - Add distributed tracing for production observability
 - **Hard-coded config** - Move port and paths to environment variables
