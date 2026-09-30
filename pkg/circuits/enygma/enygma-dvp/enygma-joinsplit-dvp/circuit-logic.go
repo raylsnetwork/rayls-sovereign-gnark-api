@@ -48,7 +48,10 @@ func circuitLogic(
 		api.AssertIsEqual(isValid1, 1)
 
 		// Compute public key
-		publicKey := primitives.PublicKey(api, privateKeys[i])
+		publicKey, err := primitives.PublicKey(api, privateKeys[i])
+		if err != nil {
+			return err
+		}
 
 		// Compute nullifier
 		nullifier := primitives.Nullifier(api, privateKeys[i], pathIndices[i])
@@ -129,7 +132,10 @@ func circuitLogic(
 
 	// Verify revert commitment
 	// Derive sender's public key from private key — no need to pass it explicitly
-	senderPK := primitives.PublicKey(api, privateKeys[0])
+	senderPK, err := primitives.PublicKey(api, privateKeys[0])
+	if err != nil {
+		return err
+	}
 
 	// Compute revert commitment using the SAME token data from inputs:
 	// - inputsTotals: same total amount being spent (constrained by balance check)

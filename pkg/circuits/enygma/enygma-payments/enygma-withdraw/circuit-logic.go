@@ -96,15 +96,21 @@ func circuitLogic(
 
 	///////////////////////////////////**///////////////////////////////////
 	// Check knowledge of secret of sender
-	common.CheckSecretKnowledge(api, k, senderId, anonymity_set, shared_secrets, previousR, secret_key)
+	if err := common.CheckSecretKnowledge(api, k, senderId, anonymity_set, shared_secrets, previousR, secret_key); err != nil {
+		return err
+	}
 
 	///////////////////////////////////**///////////////////////////////////
 	// Check if Hash Array of Secret is well formed
-	common.CheckHashArrayOfSecrets(api, k, shared_secrets, arrayHashSecret)
+	if err := common.CheckHashArrayOfSecrets(api, k, shared_secrets, arrayHashSecret); err != nil {
+		return err
+	}
 
 	///////////////////////////////////**///////////////////////////////////
 	// Knowledge of SecretKey - Perform public key generation and check if SecretKey generate senderId's PublicKey
-	common.CheckPublicKeyKnowledge(api, k, senderId, anonymity_set, publicKey, secret_key)
+	if err := common.CheckPublicKeyKnowledge(api, k, senderId, anonymity_set, publicKey, secret_key); err != nil {
+		return err
+	}
 
 	///////////////////////////////////**///////////////////////////////////
 	// Check if previous commits and tx commits are on Curve
@@ -157,11 +163,15 @@ func circuitLogic(
 
 	///////////////////////////////////**//////////////////////////////////////
 	// Knowledge of Message Tag - Perform verification is message tag is well formed
-	common.CheckMessageTags(api, k, shared_secrets, blockNumber, message_tags)
+	if err := common.CheckMessageTags(api, k, shared_secrets, blockNumber, message_tags); err != nil {
+		return err
+	}
 
 	// ///////////////////////////////////**//////////////////////////////////////
 	// Check if random factors R are well formed
-	common.CheckRandomFactors(api, k, senderId, anonymity_set, shared_secrets, blockNumber, txRandom)
+	if err := common.CheckRandomFactors(api, k, senderId, anonymity_set, shared_secrets, blockNumber, txRandom); err != nil {
+		return err
+	}
 
 	///////////////////////////////////**//////////////////////////////////////
 	// Components for processing multiple commitment withdraw
@@ -178,7 +188,10 @@ func circuitLogic(
 		isDepositZero := api.IsZero(v_per_deposit[i])
 		//api.Println(fmt.Sprintf("isDepositZero[%d]:", i), isDepositZero)
 
-		publicKeyFromSk := primitives.PublicKey(api, sk_deposits[i])
+		publicKeyFromSk, err := primitives.PublicKey(api, sk_deposits[i])
+		if err != nil {
+			return err
+		}
 
 		// Check if Hash(commitment in Dvp - MerkleTree) is well formed (V2)
 		// V2 formula: H(H(H(publicKeyFromSk, saltsIn[i]), v_per_deposit[i]), address)

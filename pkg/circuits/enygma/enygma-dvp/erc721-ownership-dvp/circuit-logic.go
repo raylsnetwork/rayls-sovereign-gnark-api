@@ -28,7 +28,10 @@ func circuitLogic(
 	for i := 0; i < nInputs; i++ {
 
 		// Compute public key from private key
-		publicKey := primitives.PublicKey(api, privateKeys[i])
+		publicKey, err := primitives.PublicKey(api, privateKeys[i])
+		if err != nil {
+			return err
+		}
 		//api.Println("PublicKey computed from private key")
 
 		// Compute and verify nullifier
@@ -90,7 +93,10 @@ func circuitLogic(
 
 	// Verify revert commitment
 	// Derive sender's public key from private key — no need to pass it explicitly
-	senderPK := primitives.PublicKey(api, privateKeys[0])
+	senderPK, err := primitives.PublicKey(api, privateKeys[0])
+	if err != nil {
+		return err
+	}
 
 	// Revert uses the SAME uIdIn[0] — guarantees the revert locks the same NFT
 	revertCommit := primitives.CommitmentV2ERC721(api, senderPK, revertSalt, uIdIn[0])

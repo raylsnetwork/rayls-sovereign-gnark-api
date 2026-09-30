@@ -49,7 +49,10 @@ func circuitLogic(
 		api.AssertIsEqual(isValid1, 1)
 
 		// Compute public key from private key
-		publicKey := primitives.PublicKey(api, privateKeys[i])
+		publicKey, err := primitives.PublicKey(api, privateKeys[i])
+		if err != nil {
+			return err
+		}
 
 		// Compute and verify nullifier
 		nullifier := primitives.Nullifier(api, privateKeys[i], pathIndices[i])
@@ -130,7 +133,10 @@ func circuitLogic(
 
 	// Verify revert commitment
 	// Derive sender's public key from private key — no need to pass it explicitly
-	senderPK := primitives.PublicKey(api, privateKeys[0])
+	senderPK, err := primitives.PublicKey(api, privateKeys[0])
+	if err != nil {
+		return err
+	}
 
 	// Revert uses the SAME contractAddr, tokenId, inputsTotals — guarantees same token type and amount
 	revertCommit := primitives.CommitmentV2ERC1155(api, senderPK, revertSalt, erc1155ContractAddress, erc1155TokenId, inputsTotals)
