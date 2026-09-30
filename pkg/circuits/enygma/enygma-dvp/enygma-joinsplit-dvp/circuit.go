@@ -75,6 +75,7 @@ func (circuit *EnygmaJoinSplitCircuit) Define(api frontend.API) error {
 		circuit.NftCommitment,
 		circuit.MerkleRoots[:],
 		circuit.Nullifiers[:],
+		circuit.TreeNumbers[:],
 		circuit.CommitmentsOut[:],
 		circuit.PrivateKeys[:],
 		circuit.SaltsIn[:],

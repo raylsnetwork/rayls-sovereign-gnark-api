@@ -70,6 +70,7 @@ func (circuit *Erc721OwnershipCircuit) Define(api frontend.API) error {
 		circuit.PaymentCommitment,
 		circuit.MerkleRoot,
 		circuit.Nullifiers[:],
+		circuit.TreeNumber,
 		circuit.CommitmentsOut[:],
 		circuit.PrivateKeys[:],
 		circuit.SaltsIn[:],

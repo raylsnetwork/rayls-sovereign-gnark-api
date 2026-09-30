@@ -11,6 +11,7 @@ func circuitLogic(
 	paymentCommitment frontend.Variable,
 	merkleRoot frontend.Variable,
 	nullifiers []frontend.Variable,
+	treeNumber frontend.Variable,
 	commitmentsOut []frontend.Variable,
 	privateKeys []frontend.Variable,
 	saltsIn []frontend.Variable,
@@ -23,6 +24,10 @@ func circuitLogic(
 	revertCommitment frontend.Variable,
 	revertSalt frontend.Variable,
 ) error {
+
+	// The message is the DvP payment link or the ownership challenge, and the vault
+	// records nullifiers per tree number; neither is otherwise constrained.
+	primitives.BindPublicInputs(api, paymentCommitment, treeNumber)
 
 	//verify input notes
 	for i := 0; i < nInputs; i++ {
@@ -66,6 +71,9 @@ func circuitLogic(
 		// Enable = 1 - isZero (1 if value != 0, 0 if value == 0)
 		// This enables the merkle root check only for non-dummy inputs
 		Enable := api.Sub(1, isZero)
+
+		// A real input must not use the dummy nullifier, or the vault skips its root check
+		primitives.AssertRealInputNotDummy(api, Enable, nullifier)
 		//api.Println("Enable flag (1 for real input, 0 for dummy):", Enable)
 
 		// Diff = merkleRoots[i] - root

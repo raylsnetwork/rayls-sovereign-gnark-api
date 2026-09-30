@@ -78,6 +78,7 @@ func (circuit *Erc1155JoinSplitCircuit) Define(api frontend.API) error {
 		circuit.NftCommitment,
 		circuit.MerkleRoots[:],
 		circuit.Nullifiers[:],
+		circuit.TreeNumbers[:],
 		circuit.CommitmentsOut[:],
 		circuit.PrivateKeys[:],
 		circuit.SaltsIn[:],

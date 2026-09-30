@@ -12,6 +12,7 @@ func circuitLogic(
 	nftCommitment frontend.Variable,
 	merkleRoots []frontend.Variable,
 	nullifiers []frontend.Variable,
+	treeNumbers []frontend.Variable,
 	commitmentsOut []frontend.Variable,
 	privateKeys []frontend.Variable,
 	saltsIn []frontend.Variable,
@@ -25,6 +26,11 @@ func circuitLogic(
 	revertCommitment frontend.Variable,
 	revertSalt frontend.Variable,
 ) error {
+	// The message links this proof to the other leg of the DvP, and the vault
+	// records nullifiers per tree number; neither is otherwise constrained.
+	primitives.BindPublicInputs(api, nftCommitment)
+	primitives.BindPublicInputs(api, treeNumbers...)
+
 	inputsTotals := frontend.Variable(0)
 	outputsTotals := frontend.Variable(0)
 
@@ -89,6 +95,9 @@ func circuitLogic(
 
 		// If Enable == 1 (real input), then Diff must be 0
 		// If Enable == 0 (dummy input), then this check is bypassed
+		// A real input must not use the dummy nullifier, or the vault skips its root check
+		primitives.AssertRealInputNotDummy(api, Enable, nullifier)
+
 		DiffTimesEnable := api.Mul(Diff, Enable)
 		//api.Println("Diff * Enable:", DiffTimesEnable)
 		//api.Println("Asserting Diff * Enable == 0")
