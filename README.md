@@ -50,8 +50,8 @@ If you've changed any circuit logic, you MUST regenerate keys and verifiers:
 # A. Generate new keys and verifiers
 ./generate_keys_verifiers.sh
 
-# B. Commit artifacts to Git LFS
-./update_last_build_lfs.sh
+# B. Commit artifacts to Git LFS (commits only last_build/; add --push to push)
+./update_last_build_lfs.sh --push
 
 # C. Compile executables
 ./compile_circuits_gen_executables.sh
@@ -136,7 +136,7 @@ git lfs checkout
 - **Circuit changes = New keys required**: Always run `generate_keys_verifiers.sh` after modifying circuits
 - **Large files**: The `last_build/` directory contains large binary files managed by Git LFS
 - **Team collaboration**: All team members must have Git LFS installed
-- **After generating keys**: Always run `update_build_artifacts.sh` to commit changes to LFS
+- **After generating keys**: Always run `update_last_build_lfs.sh` to commit changes to LFS. It commits only `last_build/`, and pushes only with `--push`
 - **Storage optimization**: Periodically run `git lfs prune` to remove old artifact versions
 
 ---

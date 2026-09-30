@@ -54,14 +54,23 @@ if ! command -v git-lfs > /dev/null 2>&1; then
     install_git_lfs
 fi
 
-# Stage and commit
+# Pass --push to also push the commit and its LFS objects.
+PUSH=false
+[ "${1:-}" = "--push" ] && PUSH=true
+
+# Stage and commit only last_build/: a pathspec commit leaves any other
+# staged changes out of the artifacts commit.
 git add last_build/
-if ! git diff --staged --quiet; then
+if ! git diff --staged --quiet -- last_build/; then
     BRANCH=$(git branch --show-current)
-    git commit -m "Update circuit build artifacts - $(date '+%Y-%m-%d %H:%M:%S')"
-    git lfs push origin "$BRANCH"
-    git push origin "$BRANCH"
-    echo "✓ Build artifacts updated and pushed"
+    git commit -m "chore(build): regenerate circuit artifacts ($(date '+%Y-%m-%d'))" -- last_build/
+    if $PUSH; then
+        git lfs push origin "$BRANCH"
+        git push origin "$BRANCH"
+        echo "✓ Build artifacts committed and pushed"
+    else
+        echo "✓ Build artifacts committed locally; rerun with --push or push manually"
+    fi
 else
     echo "No changes to commit"
 fi
