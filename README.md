@@ -245,7 +245,8 @@ Background and design: [docs/trusted-setup-ceremony.md](docs/trusted-setup-cerem
 - An SSH key for signing, e.g. `~/.ssh/id_ed25519.pub`, loaded in `ssh-agent` or with its
   private key next to it
 - About 150 MB of disk for the Perpetual Powers of Tau file (downloaded once to
-  `~/.cache/rayls-ceremony`) and about 2 GB of memory per parallel job (`--jobs`, default 4)
+  `~/.cache/rayls-ceremony`) and about 2.5 GB of memory per parallel job (`--jobs`; by
+  default half the CPU cores, at most 9, and no more than available memory allows)
 - For contributing: ideally a fresh machine or VM that you destroy afterwards, **kept awake and
   plugged in for the whole contribution** (see [How long it takes](#how-long-it-takes))
 
@@ -333,14 +334,14 @@ the 2^16 and 2^17 circuits.
 | Step | Measured | Notes |
 |---|---|---|
 | `init` | a few minutes | plus the 150 MB download the first time |
-| `contribute` | about 3 hours with one circuit at a time, on a 20-core laptop | `--jobs` (default 4) processes several circuits in parallel and should cut this substantially |
-| `finalize`, `verify` | similar to `contribute` | also parallel |
+| `verify` | about 20 minutes on a 20-core, 32 GB laptop (6 circuits at a time) | was over 3 hours before the parallel preparation |
+| `contribute`, `finalize` | similar to `verify` | they do the same preparation, plus a few seconds per circuit |
 
 The announced beacon round must still be in the future when `contribute` finishes. If it isn't
 (for example because the machine slept), the contribution is **discarded automatically** and you
-run `contribute` again with a larger `--beacon-delay`. The default of 180 minutes is for a
-machine like the one above with parallel jobs; on a slower or memory-limited machine
-(fewer `--jobs`), use more.
+run `contribute` again with a larger `--beacon-delay`. The default of 180 minutes leaves a wide
+margin on a machine like the one above; on a much slower or memory-limited machine (fewer
+`--jobs`), use more.
 
 ### If something goes wrong
 
@@ -383,7 +384,7 @@ export CEREMONY_DEMO=1
 | | `round-at "YYYY-MM-DD HH:MM UTC"` | Prints the drand round for a time | nothing |
 
 `register`, `contribute` and `finalize` also accept `--push`. Run `./ceremony.sh help` for all
-options; `CEREMONY_JOBS` sets the default for `--jobs`.
+options; `CEREMONY_JOBS` sets the default for `--jobs` (0, the default, picks it automatically).
 
 ### Tips for contributors
 

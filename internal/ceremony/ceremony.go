@@ -21,9 +21,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime/debug"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/groth16/bn254/mpcsetup"
@@ -36,15 +38,14 @@ type Ceremony struct {
 	Circuits []Circuit
 	// Log receives progress messages; nil discards them.
 	Log io.Writer
-	// Jobs is how many circuits are processed at once; 0 means DefaultJobs.
+	// Jobs is how many circuits are processed at once; 0 means AutoJobs().
 	// Each job needs about 2 GB of memory for the largest circuits.
 	Jobs int
 
 	logMu sync.Mutex
+	// lag shares Lagrange-form phase 1 parameters across circuits.
+	lag lagrangeCache
 }
-
-// DefaultJobs is the number of circuits processed in parallel by default.
-const DefaultJobs = 4
 
 // InitOptions selects the phase 1 parameters.
 type InitOptions struct {
@@ -167,12 +168,12 @@ func (c *Ceremony) Contribute(name, beacon string) (Contribution, error) {
 		if err != nil {
 			return err
 		}
-		c.logf("contributing to %s...", cc.Name)
+		start := time.Now()
 		latest.Contribute()
 		if hashes[i], err = writeObject(filepath.Join(c.Dir, relDir, cc.Name+".bin"), latest); err != nil {
 			return err
 		}
-		c.logf("done %s", cc.Name)
+		c.logf("%s: contributed in %s", cc.Name, since(start))
 		return nil
 	})
 	if err != nil {
@@ -231,11 +232,12 @@ func (c *Ceremony) Finalize(beaconHex, outDir string) (*Release, error) {
 		if err != nil {
 			return err
 		}
+		start := time.Now()
 		pk, vk := latest.Seal(srs[cc.Power], evals, beacon)
 		if written[i], err = writeOutputs(outDir, cc, pk, vk); err != nil {
 			return err
 		}
-		c.logf("released %s", cc.Name)
+		c.logf("%s: keys sealed and written in %s", cc.Name, since(start))
 		return nil
 	})
 	if err != nil {
@@ -410,9 +412,17 @@ func checkReleases(m *Manifest) error {
 // the circuit's evaluations, which sealing needs. Initialising is the
 // expensive step, so it happens once per circuit.
 func (c *Ceremony) replayPhase2(m *Manifest, cc *compiled, srs *mpcsetup.SrsCommons) (*mpcsetup.Phase2, *mpcsetup.Phase2Evaluations, error) {
-	c.logf("preparing %s (2^%d)...", cc.Name, cc.Power)
-	prev := new(mpcsetup.Phase2)
-	evals := prev.Initialize(cc.R1CS, srs)
+	start := time.Now()
+	lag, err := c.lag.get(srs)
+	if err != nil {
+		return nil, nil, err
+	}
+	prev, evals, err := initializePhase2(cc.R1CS, srs, lag)
+	if err != nil {
+		return nil, nil, err
+	}
+	c.logf("%s (2^%d): prepared in %s", cc.Name, cc.Power, since(start))
+	start = time.Now()
 	for _, contrib := range m.Phase2.Contributions {
 		next, err := c.readPhase2(contrib, cc.Name)
 		if err != nil {
@@ -423,7 +433,10 @@ func (c *Ceremony) replayPhase2(m *Manifest, cc *compiled, srs *mpcsetup.SrsComm
 		}
 		prev = next
 	}
-	return prev, &evals, nil
+	if n := len(m.Phase2.Contributions); n > 0 {
+		c.logf("%s: %d contribution(s) checked in %s", cc.Name, n, since(start))
+	}
+	return prev, evals, nil
 }
 
 // sealAt derives the keys for one circuit from the first n contributions and
@@ -455,15 +468,27 @@ func (c *Ceremony) compileAll() ([]*compiled, error) {
 	if len(c.Circuits) == 0 {
 		return nil, errors.New("no circuits configured")
 	}
-	out := make([]*compiled, 0, len(c.Circuits))
-	for _, circ := range c.Circuits {
-		c.logf("compiling %s...", circ.Name)
-		cc, err := compile(circ)
+	start := time.Now()
+	out := make([]*compiled, len(c.Circuits))
+	errs := make([]error, len(c.Circuits))
+	sem := make(chan struct{}, c.jobs())
+	var wg sync.WaitGroup
+	for i, circ := range c.Circuits {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			out[i], errs[i] = compile(circ)
+		}()
+	}
+	wg.Wait()
+	for _, err := range errs {
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, cc)
 	}
+	c.logf("compiled %d circuits in %s", len(out), since(start))
 	return out, nil
 }
 
@@ -505,12 +530,13 @@ func (c *Ceremony) jobs() int {
 	if c.Jobs > 0 {
 		return c.Jobs
 	}
-	return DefaultJobs
+	return AutoJobs()
 }
 
 // forEach runs fn for every circuit, at most jobs() at a time, and returns the
 // first error in circuit order.
 func (c *Ceremony) forEach(circuits []*compiled, fn func(i int, cc *compiled) error) error {
+	c.logf("processing %d circuits, %d at a time", len(circuits), c.jobs())
 	errs := make([]error, len(circuits))
 	sem := make(chan struct{}, c.jobs())
 	var wg sync.WaitGroup
@@ -613,19 +639,58 @@ func checkOutputs(rel *Release, cc *compiled, pk groth16.ProvingKey, vk groth16.
 		if outDir == "" {
 			continue
 		}
-		path := filepath.Join(outDir, name)
 		if strings.HasSuffix(name, "_raw.sol") {
-			if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-				// Not converted yet: the raw export is still at <Verifier>.sol.
-				path = filepath.Join(outDir, cc.Verifier+".sol")
+			if err := checkVerifiers(outDir, cc.Verifier, b); err != nil {
+				return err
 			}
+			continue
 		}
+		path := filepath.Join(outDir, name)
 		got, err := fileSHA256(path)
 		if err != nil {
 			return err
 		}
 		if got != sha {
 			return fmt.Errorf("%s: sha256 %s, but the ceremony derives %s", path, got, sha)
+		}
+	}
+	return nil
+}
+
+// solidityConstant matches a constant declaration in a generated verifier.
+var solidityConstant = regexp.MustCompile(`(?m)^\s*uint256\s+constant\s+([A-Za-z0-9_]+)\s*=\s*(0x[0-9a-fA-F]+|[0-9]+)\s*;`)
+
+// solidityConstants returns a verifier's constant declarations, which hold
+// its verifying key, in order.
+func solidityConstants(src []byte) []string {
+	var out []string
+	for _, m := range solidityConstant.FindAllSubmatch(src, -1) {
+		out = append(out, string(m[1])+"="+string(m[2]))
+	}
+	return out
+}
+
+// checkVerifiers checks that <Verifier>.sol and, if present,
+// <Verifier>_raw.sol in outDir embed the same verifying key as raw, the
+// verifier exported from the release. generate_keys_verifiers.sh rewrites
+// both files (contract name, wrapper function), so only their constants are
+// compared, not their bytes.
+func checkVerifiers(outDir, verifier string, raw []byte) error {
+	want := solidityConstants(raw)
+	if len(want) == 0 {
+		return fmt.Errorf("%s: exported verifier has no constants", verifier)
+	}
+	for _, name := range []string{verifier + ".sol", verifier + "_raw.sol"} {
+		path := filepath.Join(outDir, name)
+		src, err := os.ReadFile(path)
+		if errors.Is(err, os.ErrNotExist) && name != verifier+".sol" {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("read %s: %w", path, err)
+		}
+		if got := solidityConstants(src); !slices.Equal(got, want) {
+			return fmt.Errorf("%s: its verifying-key constants differ from the verifier the ceremony derives", path)
 		}
 	}
 	return nil
@@ -705,4 +770,9 @@ func gnarkVersion() string {
 		}
 	}
 	return "unknown"
+}
+
+// since formats the time elapsed since start for progress messages.
+func since(start time.Time) string {
+	return time.Since(start).Round(time.Second).String()
 }

@@ -18,8 +18,9 @@ DRAND_API="${DRAND_API:-https://api.drand.sh}"
 PTAU_URL="${PTAU_URL:-https://pse-trusted-setup-ppot.s3.eu-central-1.amazonaws.com/pot28_0080/ppot_0080_17.ptau}"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/rayls-ceremony"
 DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
-# Circuits processed in parallel; each needs about 2 GB of memory.
-JOBS="${CEREMONY_JOBS:-4}"
+# Circuits processed in parallel; each needs about 2 GB of memory. 0 lets the
+# tool choose from the CPU count and free memory.
+JOBS="${CEREMONY_JOBS:-0}"
 NAME_RE='^[a-z0-9][a-z0-9-]{0,39}$'
 
 ROOT="$(git rev-parse --show-toplevel)"
@@ -36,9 +37,9 @@ else
     DEMO=0
     DIR="ceremony"
     OUT="last_build"
-    # A contribution took about 3 hours on a 20-core laptop with one circuit
-    # at a time; parallel jobs shorten it. Keep a generous margin: a round
-    # published before the contribution finishes forces a rerun.
+    # A contribution takes about 20 minutes on a 20-core laptop; keep a
+    # generous margin for slower machines: a round published before the
+    # contribution finishes forces a rerun.
     DEFAULT_DELAY=180
 fi
 
@@ -93,7 +94,8 @@ Other commands:
 
 Environment:
   CEREMONY_DEMO=1   rehearse with tiny circuits in ceremony-demo/ (keys are useless)
-  CEREMONY_JOBS     default for --jobs (circuits in parallel, ~2 GB each; default 4)
+  CEREMONY_JOBS     default for --jobs (circuits in parallel, ~2 GB each; default:
+                    automatic, from CPUs and free memory)
   PTAU_URL          powers-of-tau file to import (default: PPoT 0080, 2^17)
   DEFAULT_BRANCH    branch contributions are based on (default: main)
 
@@ -365,6 +367,12 @@ cmd_register() {
         step "$name is already registered with this key"
         return
     fi
+    local other
+    for other in "$DIR"/contributors/*.pub; do
+        [ -f "$other" ] || continue
+        [ "$(key_body "$other")" != "$(key_body "$KEY")" ] \
+            || die "this key is already registered as $(basename "$other" .pub); each contributor needs its own key"
+    done
     use_branch "register-$name"
     cp "$KEY" "$dest"
     regenerate_allowed_signers
@@ -403,7 +411,7 @@ cmd_contribute() {
     index="$(info next_index)"
     round="$(round_at_epoch $(( $(date -u +%s) + delay * 60 )))"
     step "contribution #$index; the next release will use drand quicknet round $round ($(round_time "$round"))"
-    step "verifying earlier contributions and contributing to every circuit ($JOBS at a time)."
+    step "verifying earlier contributions and contributing to every circuit."
     step "KEEP THIS MACHINE AWAKE and the command running until it finishes, before $(round_time "$round")."
     step "If the machine sleeps past that time, the contribution is discarded and must be rerun."
     # On Ctrl+C or kill, remove the half-written contribution.
@@ -551,7 +559,8 @@ cmd_verify() {
     done < <(tool releases --dir "$DIR" 2>/dev/null | awk -F'\t' 'NF == 4')
 
     step "checking contribution signatures and attestations"
-    local signers="$DIR/contributors/allowed_signers" index name path hash beacon commit att
+    local signers="$DIR/contributors/allowed_signers" index name path hash beacon commit att own
+    own="$TOOL_DIR/allowed_signers.one"
     while IFS=$'\t' read -r index name path hash beacon; do
         [ -n "$index" ] || continue
         att="$DIR/attestations/$(printf '%04d-%s' "$index" "$name").md"
@@ -562,7 +571,10 @@ cmd_verify() {
             echo "#$index $name: not committed yet"
             continue
         fi
-        git -c gpg.ssh.allowedSignersFile="$signers" verify-commit "$commit" 2>&1 \
+        # Verify against this contributor's key only: with several names on one
+        # key, git would report whichever name comes first.
+        grep "^$name " "$signers" > "$own" || die "$name is not in $signers"
+        git -c gpg.ssh.allowedSignersFile="$own" verify-commit "$commit" 2>&1 \
             | grep -q "Good \"git\" signature for $name with" \
             || die "contribution $index by $name is not signed by $name's registered key (commit $commit)"
         echo "#$index $name: signed by $name, $hash"

@@ -245,6 +245,15 @@ func TestCeremonyVerifyRejectsTampering(t *testing.T) {
 			flipByte(t, filepath.Join(out, "keys", "DemoSmallVk.key"))
 			return ""
 		}},
+		{"verifier constant changed", func(t *testing.T, _ *Ceremony, out string) string {
+			editVerifier(t, filepath.Join(out, "DemoSmallVerifier.sol"), changeFirstConstant)
+			return ""
+		}},
+		{"converted raw verifier constant changed", func(t *testing.T, _ *Ceremony, out string) string {
+			convertVerifier(t, out, "DemoSmallVerifier")
+			editVerifier(t, filepath.Join(out, "DemoSmallVerifier_raw.sol"), changeFirstConstant)
+			return ""
+		}},
 		{"phase 1 parameters edited and hash updated", func(t *testing.T, c *Ceremony, _ string) string {
 			m := loadManifestT(t, c)
 			rec := &m.Phase1.SRS[0]
@@ -600,5 +609,62 @@ func TestCeremonyParallelismDoesNotChangeOutputs(t *testing.T) {
 		if r2.Outputs[k] != v {
 			t.Errorf("%s differs between 4 jobs and 1 job", k)
 		}
+	}
+}
+
+// convertVerifier mimics generate_keys_verifiers.sh: <Verifier>_raw.sol gets a
+// renamed contract and a wrapper function, and <Verifier>.sol changes too.
+func convertVerifier(t *testing.T, out, verifier string) {
+	t.Helper()
+	path := filepath.Join(out, verifier+".sol")
+	src, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := strings.Replace(string(src), "contract Verifier", "contract "+verifier+"_raw", 1) +
+		"\n// wrapper\nfunction verifyProof() {}\n"
+	if err := os.WriteFile(filepath.Join(out, verifier+"_raw.sol"), []byte(raw), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	editVerifier(t, path, func(s string) string { return "// converted\n" + s })
+}
+
+func editVerifier(t *testing.T, path string, edit func(string) string) {
+	t.Helper()
+	src, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(edit(string(src))), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// changeFirstConstant alters the value of the verifier's first verifying-key
+// constant (the precompile addresses come first and are skipped).
+func changeFirstConstant(s string) string {
+	loc := solidityConstant.FindAllStringSubmatchIndex(s, -1)
+	for _, m := range loc {
+		if strings.HasPrefix(s[m[2]:m[3]], "PRECOMPILE") || s[m[2]:m[3]] == "P" || s[m[2]:m[3]] == "R" {
+			continue
+		}
+		digit := "1"
+		if s[m[5]-1] == '1' {
+			digit = "2"
+		}
+		return s[:m[5]-1] + digit + s[m[5]:]
+	}
+	panic("no verifying-key constant")
+}
+
+func TestCeremonyVerifyAcceptsConvertedVerifiers(t *testing.T) {
+	t.Parallel()
+	c, ptau := newCeremony(t)
+	out := twoReleases(t, c)
+	for _, v := range []string{"DemoSmallVerifier", "DemoLargeVerifier"} {
+		convertVerifier(t, out, v)
+	}
+	if err := c.Verify(out, ptau); err != nil {
+		t.Fatalf("verify with converted verifiers: %v", err)
 	}
 }

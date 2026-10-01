@@ -11,7 +11,7 @@
 //	ceremony releases       # version<TAB>contributions<TAB>beacon source<TAB>beacon value per line
 //
 // Every subcommand takes --dir (default "ceremony") and --jobs (circuits
-// processed in parallel, default 4). Progress goes to stderr; contribute prints
+// processed in parallel; default: chosen from CPUs and free memory). Progress goes to stderr; contribute prints
 // the contribution hash on stdout.
 //
 // CEREMONY_DEMO=1 swaps the production circuits for two tiny demo circuits
@@ -47,7 +47,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	fs := flag.NewFlagSet(cmd, flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	dir := fs.String("dir", "ceremony", "ceremony transcript directory")
-	jobs := fs.Int("jobs", ceremony.DefaultJobs, "circuits processed in parallel (about 2 GB of memory each)")
+	jobs := fs.Int("jobs", 0, "circuits processed in parallel, about 2 GB of memory each (0: automatic, from CPUs and free memory)")
 	demo := os.Getenv("CEREMONY_DEMO") == "1"
 	c := &ceremony.Ceremony{Circuits: ceremony.ProductionCircuits(), Log: stderr}
 	if demo {

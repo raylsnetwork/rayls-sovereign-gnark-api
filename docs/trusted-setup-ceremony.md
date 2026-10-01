@@ -150,8 +150,17 @@ Properties enforced, all covered by tests:
   name, and each has an attestation recording its hash.
 
 `contribute`, `finalize` and `verify` process several circuits in parallel
-(`--jobs`, default 4, about 2 GB of memory each); finalizing with any number of
-jobs gives byte-identical keys. An interrupted `contribute` or `finalize`
+(`--jobs`; by default half the CPU cores, at most 9, limited to one job per
+2.5 GB of available memory); finalizing with any number of jobs gives
+byte-identical keys.
+
+Preparing each circuit's phase 2 starting state is the slow part of every
+command. gnark's `Phase2.Initialize` does it on one core and recomputes the
+Lagrange-form phase 1 parameters for every circuit.
+`internal/ceremony/initialize.go` computes those parameters once per domain
+size and the per-wire sums in parallel. Its output is byte-identical to
+gnark's, which the tests check. Circuits with Groth16 commitments (none here)
+fall back to gnark's implementation. An interrupted `contribute` or `finalize`
 removes its partial files.
 
 Rehearsals: `CEREMONY_DEMO=1` runs the same flow with two tiny circuits and an
@@ -178,9 +187,8 @@ each institution runs `./ceremony.sh verify`.
 
 ## Next steps
 
-- [x] Time one full contribution: about 3 hours with one circuit at a time on
-      a 20-core laptop (2^16 circuits ~7 min, 2^17 ~12 min each). Circuits are
-      now processed in parallel (`--jobs`, default 4); re-time with that.
+- [x] Time a full run: `verify` of release v1 takes about 20 minutes on a
+      20-core, 32 GB laptop (6 circuits at a time), down from over 3 hours.
 - [ ] Make the first production release (first contributor) and deploy it.
 - [ ] Add a CI check that runs `./ceremony.sh verify` on every contribution pull
       request.
