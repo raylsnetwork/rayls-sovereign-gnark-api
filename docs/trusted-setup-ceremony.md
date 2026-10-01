@@ -78,10 +78,12 @@ v3:  [you] ─▶ [bank-b] ─▶ [bank-c] ─▶ beacon 3 ─▶ keys v3
 ```
 
 - **Contribute.** Anyone registered adds randomness to all 18 circuits on top
-  of the latest contribution. The contribution announces a future drand quicknet
-  round as the beacon for the next release. The script picks the round a
-  configurable delay ahead and discards the contribution if the round is
-  published before the contribution is finished.
+  of the latest contribution, verifying every earlier contribution first. The
+  contribution announces a future drand quicknet round as the beacon for the
+  next release. The script picks the round a configurable delay ahead (default
+  180 minutes) and discards the contribution if, by the clock, the round is
+  published (or within 2 minutes of it) before the contribution is finished,
+  e.g. because the machine slept.
 - **Release.** Once that round is published, anyone can finalize: the tool
   replays the chain, applies the beacon to the latest contribution and writes
   the keys. Several contributions can go into one release; the beacon is the
@@ -126,7 +128,9 @@ circuit files.
 | `contribute` | Checks and extends the chain, announces the next beacon, writes an attestation, signed commit |
 | `finalize` | Waits for the announced beacon, releases keys into `last_build/`, converts the verifiers |
 | `verify` | Checks phase 1 against the `.ptau`, every contribution, every release (re-derived), every beacon against drand, every signature against the registered key, and `last_build/` against the latest release |
+| `copy-verifiers` | Copies the latest release's verifiers into the contracts repository |
 | `status` | Shows phase 1, contributions and releases |
+| `clean` | Removes leftovers of an interrupted run |
 
 Properties enforced, all covered by tests:
 
@@ -144,6 +148,11 @@ Properties enforced, all covered by tests:
 - **Each proving key uses its circuit's own domain size.**
 - **Contributions are signed** by the registered key of the institution they
   name, and each has an attestation recording its hash.
+
+`contribute`, `finalize` and `verify` process several circuits in parallel
+(`--jobs`, default 4, about 2 GB of memory each); finalizing with any number of
+jobs gives byte-identical keys. An interrupted `contribute` or `finalize`
+removes its partial files.
 
 Rehearsals: `CEREMONY_DEMO=1` runs the same flow with two tiny circuits and an
 insecure local phase 1 in `ceremony-demo/`.
@@ -169,7 +178,9 @@ each institution runs `./ceremony.sh verify`.
 
 ## Next steps
 
-- [ ] Time one full contribution (18 circuits) on representative hardware.
+- [x] Time one full contribution: about 3 hours with one circuit at a time on
+      a 20-core laptop (2^16 circuits ~7 min, 2^17 ~12 min each). Circuits are
+      now processed in parallel (`--jobs`, default 4); re-time with that.
 - [ ] Make the first production release (first contributor) and deploy it.
 - [ ] Add a CI check that runs `./ceremony.sh verify` on every contribution pull
       request.

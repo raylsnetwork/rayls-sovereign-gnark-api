@@ -234,7 +234,7 @@ and re-derive the keys in `last_build/`.
 > made the previous releases, and ideally from you.** Until then, a release only rests on the
 > contributors it already includes: the first release, with a single contributor, rests
 > entirely on that one participant. **Ideally, every institution or user running this
-> repository contributes once** (step 2 below takes one command). Your own contribution is the
+> repository contributes once** (steps 2 and 3 below). Your own contribution is the
 > only one you don't have to trust.
 
 Background and design: [docs/trusted-setup-ceremony.md](docs/trusted-setup-ceremony.md).
@@ -244,55 +244,66 @@ Background and design: [docs/trusted-setup-ceremony.md](docs/trusted-setup-cerem
 - Go (the version in `go.mod`), git 2.34 or newer, Git LFS, and `curl`
 - An SSH key for signing, e.g. `~/.ssh/id_ed25519.pub`, loaded in `ssh-agent` or with its
   private key next to it
-- About 150 MB for the Perpetual Powers of Tau file, downloaded once to `~/.cache/rayls-ceremony`
-- For contributing: ideally a fresh machine or VM that you destroy afterwards
+- About 150 MB of disk for the Perpetual Powers of Tau file (downloaded once to
+  `~/.cache/rayls-ceremony`) and about 2 GB of memory per parallel job (`--jobs`, default 4)
+- For contributing: ideally a fresh machine or VM that you destroy afterwards, **kept awake and
+  plugged in for the whole contribution** (see [How long it takes](#how-long-it-takes))
 
-### How it works for you
+### Steps, in order
 
-**1. First time only: start the ceremony.** If `ceremony/manifest.json` already exists, skip
-this step. Otherwise, the first user imports phase 1 and becomes contributor #1:
+Run everything from the repository root, on an up-to-date checkout. Nothing is pushed unless
+you pass `--push`.
 
 ```bash
 git switch main && git pull
-./ceremony.sh init            # downloads the Perpetual Powers of Tau, imports it, commits
 ```
 
-**2. Register and contribute.** Every new institution or user does this once:
+**1. `init`: first time only, for the whole repository.** Skip this if `ceremony/manifest.json`
+already exists. It downloads the Perpetual Powers of Tau, imports it as phase 1 and commits:
 
 ```bash
-git switch main && git pull
+./ceremony.sh init
+```
+
+**2. `register`: once per institution or user.** Adds your SSH public key, so every later commit
+in your name must be signed by it:
+
+```bash
 ./ceremony.sh register --name bank-a
+```
+
+**3. `contribute`: once per institution or user.** Keep the machine awake until it finishes:
+
+```bash
 ./ceremony.sh contribute --name bank-a --note "Fresh VM, destroyed afterwards"
 ```
 
-`contribute`:
+It:
 
-1. checks you are up to date and verifies the whole transcript so far;
-2. adds your randomness to every circuit on top of the latest contribution (in memory only,
+1. checks you are up to date and verifies every earlier contribution;
+2. announces a future drand round (`--beacon-delay`, default 180 minutes ahead) as the beacon for
+   the next release, and prints when that is;
+3. adds your randomness to every circuit on top of the latest contribution (in memory only,
    never written to disk);
-3. announces a future drand round (30 minutes ahead by default) as the beacon for the next
-   release;
-4. writes your attestation and makes a commit signed with your SSH key, on a
-   `ceremony/...` branch.
+4. writes your attestation and makes a commit signed with your SSH key, on a `ceremony/...`
+   branch.
 
 It prints your **contribution hash**. Write it down and publish it: it is how you (and anyone
 else) confirm later that your contribution is in the keys.
 
-**3. Release the new keys.** Once the announced drand round is published, anyone (usually you,
-straight away) can release keys that include your contribution:
+**4. `finalize`: release the new keys.** Once the announced drand round is published, anyone
+(usually you, right after contributing) releases keys that include your contribution:
 
 ```bash
-./ceremony.sh finalize --wait --push
+./ceremony.sh finalize --wait
 ```
 
-This writes the new release's keys, R1CS and Solidity verifiers to `last_build/`, checks they
-are exactly what the transcript produces, commits, and pushes. Open a pull request with your
-branch; once it is reviewed and merged, the next institution contributes on top of yours.
+This writes the new release's keys, R1CS and Solidity verifiers to `last_build/` and commits.
+`--wait` waits for the round if it isn't published yet.
 
-**4. Verify before you deploy (everyone, at every release).**
+**5. `verify`: everyone, at every release.**
 
 ```bash
-git pull
 ./ceremony.sh verify
 ./ceremony.sh status   # find your name and the hash you wrote down
 ```
@@ -302,14 +313,49 @@ contribution cryptographically, re-derives every release, checks each release's 
 drand, checks every contribution is signed by the registered key of the institution it names,
 and checks `last_build/` matches the latest release byte for byte.
 
-**Deploying a release.** Every release changes the keys, so the new Solidity verifiers in
-`last_build/` must be deployed and every institution must upgrade gnark-api at the same time:
-proofs made with one release's keys don't verify against another's. Batching several
-contributions into one release keeps upgrades rare.
+**6. `copy-verifiers`, push, and deploy.**
 
-### Rehearse first (about 5 minutes)
+```bash
+./ceremony.sh copy-verifiers        # into ../rayls-sovereign-contracts (or --contracts DIR)
+git push -u origin HEAD             # then open a pull request
+```
 
-Demo mode runs the same flow with two tiny circuits and an insecure local phase 1 in
+Every release changes the keys, so the new verifiers, the gnark-api build with the new
+`last_build/` and the relayer must be deployed together, and every institution must upgrade at
+the same time: proofs made with one release's keys don't verify against another's. Batching
+several contributions into one release keeps upgrades rare.
+
+### How long it takes
+
+`contribute`, `finalize` and `verify` work on every circuit; their running time is dominated by
+the 2^16 and 2^17 circuits.
+
+| Step | Measured | Notes |
+|---|---|---|
+| `init` | a few minutes | plus the 150 MB download the first time |
+| `contribute` | about 3 hours with one circuit at a time, on a 20-core laptop | `--jobs` (default 4) processes several circuits in parallel and should cut this substantially |
+| `finalize`, `verify` | similar to `contribute` | also parallel |
+
+The announced beacon round must still be in the future when `contribute` finishes. If it isn't
+(for example because the machine slept), the contribution is **discarded automatically** and you
+run `contribute` again with a larger `--beacon-delay`. The default of 180 minutes is for a
+machine like the one above with parallel jobs; on a slower or memory-limited machine
+(fewer `--jobs`), use more.
+
+### If something goes wrong
+
+| Situation | What to do |
+|---|---|
+| You pressed Ctrl+C during `contribute` or `finalize` | The script removes the partial files itself. Run the command again. |
+| The machine slept or crashed during a run | Run `./ceremony.sh clean`, then the command again. |
+| "uncommitted changes in ceremony/ or last_build/" | Leftovers of an interrupted run: `./ceremony.sh clean`. |
+| "… was discarded; rerun with a larger --beacon-delay" | The beacon was published before your contribution finished. Run `contribute` again with a larger `--beacon-delay`, and keep the machine awake. |
+| "you are N commit(s) behind origin/main" | Someone contributed meanwhile: `git pull`, then contribute on top of them. |
+| drand temporarily unreachable | `finalize --wait` keeps retrying; other commands ask you to try again later. |
+
+### Rehearse first (about 10 minutes)
+
+Demo mode runs the same steps with two tiny circuits and an insecure local phase 1 in
 `ceremony-demo/`; it never touches `ceremony/` or `last_build/`. Use a scratch clone:
 
 ```bash
@@ -317,31 +363,34 @@ git clone <this repo> ceremony-rehearsal && cd ceremony-rehearsal
 export CEREMONY_DEMO=1
 ./ceremony.sh init
 ./ceremony.sh register --name my-bank
-./ceremony.sh contribute --name my-bank      # announces a beacon 1 minute ahead in demo mode
+./ceremony.sh contribute --name my-bank      # announces a beacon 3 minutes ahead in demo mode
 ./ceremony.sh finalize --wait
 ./ceremony.sh verify
 ```
 
 ### Command reference
 
-| Command | What it does | What it commits |
-|---|---|---|
-| `init [--ptau FILE]` | Imports phase 1 (once per repository) | `ceremony/manifest.json`, phase 1 parameters, the Git LFS rule |
-| `register --name NAME [--key PUBKEY]` | Registers your signing key | `ceremony/contributors/NAME.pub`, `allowed_signers` |
-| `contribute --name NAME [--note TEXT] [--beacon-delay MIN] [--push]` | Adds your phase 2 contribution and announces the next beacon | the contribution, its attestation, the manifest |
-| `finalize [--wait] [--push]` | Releases keys once the announced beacon is published | `last_build/`, the release record |
-| `verify [--no-ptau]` | Checks everything | nothing |
-| `status` | Shows phase 1, contributions and releases | nothing |
-| `round-at "YYYY-MM-DD HH:MM UTC"` | Prints the drand round for a time | nothing |
+| # | Command | What it does | What it commits |
+|---|---|---|---|
+| 1 | `init [--ptau FILE]` | Imports phase 1 (once per repository) | `ceremony/manifest.json`, phase 1 parameters, the Git LFS rule |
+| 2 | `register --name NAME [--key PUBKEY]` | Registers your signing key | `ceremony/contributors/NAME.pub`, `allowed_signers` |
+| 3 | `contribute --name NAME [--note TEXT] [--beacon-delay MIN] [--jobs N]` | Adds your phase 2 contribution and announces the next beacon | the contribution, its attestation, the manifest |
+| 4 | `finalize [--wait] [--jobs N]` | Releases keys once the announced beacon is published | `last_build/`, the release record |
+| 5 | `verify [--no-ptau] [--jobs N]` | Checks everything | nothing |
+| 6 | `copy-verifiers [--contracts DIR]` | Copies the release's verifiers into the contracts repository | nothing (review and commit them there) |
+| | `status` | Shows phase 1, contributions and releases | nothing |
+| | `clean` | Removes leftovers of an interrupted run | nothing |
+| | `round-at "YYYY-MM-DD HH:MM UTC"` | Prints the drand round for a time | nothing |
 
-Nothing is pushed unless you pass `--push`. Run `./ceremony.sh help` for all options.
+`register`, `contribute` and `finalize` also accept `--push`. Run `./ceremony.sh help` for all
+options; `CEREMONY_JOBS` sets the default for `--jobs`.
 
 ### Tips for contributors
 
+- **Keep the machine awake and plugged in** for the whole contribution (e.g. set Windows or
+  macOS sleep to "never", or use a tool such as PowerToys Awake or `caffeinate`).
 - **Use a clean machine** if you can: a fresh VM or live USB, destroyed afterwards. Say what you
   did in `--note`; it goes into your signed attestation.
-- **Don't interrupt** a contribution: it covers all 18 circuits. If it runs past the announced
-  beacon round, the script discards it; rerun with a larger `--beacon-delay`.
 - **Publish your contribution hash** somewhere outside git (e.g. your institution's announcement
   channel).
 

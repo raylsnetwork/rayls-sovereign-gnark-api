@@ -574,3 +574,31 @@ func copyTree(t *testing.T, src, dst string) {
 		t.Fatal(err)
 	}
 }
+
+func TestCeremonyParallelismDoesNotChangeOutputs(t *testing.T) {
+	t.Parallel()
+	c, _ := newCeremony(t)
+	c.Jobs = 4
+	if _, err := c.Contribute("alice", source1); err != nil {
+		t.Fatal(err)
+	}
+	copyDir := filepath.Join(t.TempDir(), "copy")
+	copyTree(t, c.Dir, copyDir)
+	serial := &Ceremony{Dir: copyDir, Circuits: testCircuits(), Jobs: 1}
+	r1, err := c.Finalize(beacon1, filepath.Join(t.TempDir(), "a"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r2, err := serial.Finalize(beacon1, filepath.Join(t.TempDir(), "b"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r1.Outputs) == 0 || len(r1.Outputs) != len(r2.Outputs) {
+		t.Fatalf("output sets differ: %d vs %d", len(r1.Outputs), len(r2.Outputs))
+	}
+	for k, v := range r1.Outputs {
+		if r2.Outputs[k] != v {
+			t.Errorf("%s differs between 4 jobs and 1 job", k)
+		}
+	}
+}

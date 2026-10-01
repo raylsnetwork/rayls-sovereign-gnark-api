@@ -18,6 +18,8 @@ DRAND_API="${DRAND_API:-https://api.drand.sh}"
 PTAU_URL="${PTAU_URL:-https://pse-trusted-setup-ppot.s3.eu-central-1.amazonaws.com/pot28_0080/ppot_0080_17.ptau}"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/rayls-ceremony"
 DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
+# Circuits processed in parallel; each needs about 2 GB of memory.
+JOBS="${CEREMONY_JOBS:-4}"
 NAME_RE='^[a-z0-9][a-z0-9-]{0,39}$'
 
 ROOT="$(git rev-parse --show-toplevel)"
@@ -29,12 +31,15 @@ if [ "${CEREMONY_DEMO:-}" = "1" ]; then
     DEMO=1
     DIR="ceremony-demo"
     OUT="ceremony-demo/last_build"
-    DEFAULT_DELAY=1
+    DEFAULT_DELAY=3
 else
     DEMO=0
     DIR="ceremony"
     OUT="last_build"
-    DEFAULT_DELAY=30
+    # A contribution took about 3 hours on a 20-core laptop with one circuit
+    # at a time; parallel jobs shorten it. Keep a generous margin: a round
+    # published before the contribution finishes forces a rerun.
+    DEFAULT_DELAY=180
 fi
 
 TOOL_DIR=""
@@ -50,34 +55,45 @@ usage() {
     cat <<EOF
 Usage: ./ceremony.sh <command> [options]
 
-  register   --name NAME [--key PUBKEY] [--push]
-             Register your SSH public key (once per institution or user).
+Commands, in the order you run them:
 
-  contribute --name NAME [--key PUBKEY] [--note TEXT] [--beacon-delay MIN] [--push]
-             Verify every earlier contribution, add yours on top, announce a
-             drand round MIN minutes ahead (default $DEFAULT_DELAY) for the next
-             release, write an attestation and make a signed commit.
+  1. init       [--ptau FILE] [--key PUBKEY]
+                First time only, for the whole repository: import phase 1 from
+                the Perpetual Powers of Tau (downloaded and cached once).
 
-  finalize   [--wait] [--key PUBKEY] [--push]
-             Once the announced drand round is published, release new keys
-             into $OUT/ (--wait waits for it). Anyone can run this.
+  2. register   --name NAME [--key PUBKEY] [--push]
+                Register your SSH public key (once per institution or user).
 
-  verify     [--no-ptau]
-             Check everything: phase 1 against the powers-of-tau file, every
-             contribution, signatures, attestations, every release's drand
-             beacon, and that $OUT/ matches the latest release.
+  3. contribute --name NAME [--key PUBKEY] [--note TEXT] [--beacon-delay MIN]
+                [--jobs N] [--push]
+                Verify every earlier contribution, add yours on top, announce a
+                drand round MIN minutes ahead (default $DEFAULT_DELAY) for the next
+                release, write an attestation and make a signed commit.
+                Keep the machine awake until it finishes.
 
-  status     Show phase 1, every contribution and every release.
+  4. finalize   [--wait] [--jobs N] [--key PUBKEY] [--push]
+                Once the announced drand round is published, release new keys
+                into $OUT/ (--wait waits for it). Anyone can run this.
 
-  init       [--ptau FILE] [--key PUBKEY]
-             Start the ceremony (once, for the repository): import phase 1
-             from the Perpetual Powers of Tau (downloaded and cached).
+  5. verify     [--no-ptau] [--jobs N]
+                Check everything: phase 1 against the powers-of-tau file, every
+                contribution, signatures, attestations, every release's drand
+                beacon, and that $OUT/ matches the latest release.
 
-  round-at   "YYYY-MM-DD HH:MM UTC"
-             The drand round published at (or just after) a time.
+  6. copy-verifiers [--contracts DIR]
+                Copy the release's Solidity verifiers into the contracts
+                repository (default: ../rayls-sovereign-contracts).
+
+Other commands:
+
+  status        Show phase 1, every contribution and every release.
+  clean         Remove leftovers of an interrupted contribute or finalize.
+  round-at "YYYY-MM-DD HH:MM UTC"
+                The drand round published at (or just after) a time.
 
 Environment:
   CEREMONY_DEMO=1   rehearse with tiny circuits in ceremony-demo/ (keys are useless)
+  CEREMONY_JOBS     default for --jobs (circuits in parallel, ~2 GB each; default 4)
   PTAU_URL          powers-of-tau file to import (default: PPoT 0080, 2^17)
   DEFAULT_BRANCH    branch contributions are based on (default: main)
 
@@ -176,7 +192,19 @@ regenerate_allowed_signers() {
 # --- git helpers ----------------------------------------------------------
 
 require_clean_ceremony() {
-    [ -z "$(git status --porcelain -- "$DIR")" ] || die "uncommitted changes in $DIR/: commit or discard them first"
+    [ -z "$(git status --porcelain -- "$DIR" "$OUT")" ] \
+        || die "uncommitted changes in $DIR/ or $OUT/ (an interrupted run?): commit them, or remove them with ./ceremony.sh clean"
+}
+
+# discard_uncommitted restores $DIR/ and $OUT/ to the last commit and removes
+# untracked files there: the leftovers of an interrupted run.
+discard_uncommitted() {
+    local p
+    for p in "$DIR" "$OUT"; do
+        # Paths not yet in git (e.g. a demo's first last_build) have nothing to restore.
+        git checkout -q -- "$p" 2>/dev/null || true
+        git clean -fdq -- "$p"
+    done
 }
 
 # require_up_to_date fails if origin/DEFAULT_BRANCH has commits we don't.
@@ -215,28 +243,37 @@ ensure_lfs_rule() {
 
 # --- drand ----------------------------------------------------------------
 
-drand_info() {
-    curl -sS --max-time 30 "$DRAND_API/$DRAND_CHAIN/info" || die "could not reach drand at $DRAND_API"
+DRAND_PERIOD=""
+DRAND_GENESIS=""
+
+# drand_params loads the chain's period and genesis time once. Rounds are
+# published on a fixed schedule, so times can be computed locally afterwards.
+drand_params() {
+    [ -n "$DRAND_PERIOD" ] && return 0
+    local info
+    info="$(curl -sS --max-time 30 --retry 3 "$DRAND_API/$DRAND_CHAIN/info")" || die "could not reach drand at $DRAND_API"
+    DRAND_PERIOD="$(echo "$info" | sed -n 's/.*"period":\([0-9]*\).*/\1/p')"
+    DRAND_GENESIS="$(echo "$info" | sed -n 's/.*"genesis_time":\([0-9]*\).*/\1/p')"
+    [ -n "$DRAND_PERIOD" ] && [ -n "$DRAND_GENESIS" ] || die "unexpected drand info: $info"
 }
 
 # round_at_epoch T prints the first round published at or after unix time T.
 round_at_epoch() {
-    local info period genesis
-    info="$(drand_info)"
-    period="$(echo "$info" | sed -n 's/.*"period":\([0-9]*\).*/\1/p')"
-    genesis="$(echo "$info" | sed -n 's/.*"genesis_time":\([0-9]*\).*/\1/p')"
-    [ -n "$period" ] && [ -n "$genesis" ] || die "unexpected drand info: $info"
+    drand_params
     # Round r is published at genesis + (r-1)*period.
-    echo $(( ($1 - genesis + period - 1) / period + 1 ))
+    echo $(( ($1 - DRAND_GENESIS + DRAND_PERIOD - 1) / DRAND_PERIOD + 1 ))
+}
+
+# round_epoch ROUND prints the unix time a round is published.
+round_epoch() {
+    drand_params
+    echo $(( DRAND_GENESIS + ($1 - 1) * DRAND_PERIOD ))
 }
 
 # round_time ROUND prints when a round is published, in UTC.
 round_time() {
-    local info period genesis t
-    info="$(drand_info)"
-    period="$(echo "$info" | sed -n 's/.*"period":\([0-9]*\).*/\1/p')"
-    genesis="$(echo "$info" | sed -n 's/.*"genesis_time":\([0-9]*\).*/\1/p')"
-    t=$(( genesis + ($1 - 1) * period ))
+    local t
+    t="$(round_epoch "$1")"
     date -u -d "@$t" '+%Y-%m-%d %H:%M:%S UTC' 2>/dev/null || date -u -r "$t" '+%Y-%m-%d %H:%M:%S UTC'
 }
 
@@ -245,21 +282,26 @@ round_from_source() {
     echo "$1" | sed -n 's/^drand quicknet round \([0-9][0-9]*\)$/\1/p'
 }
 
-# drand_try ROUND prints the round's randomness, or returns 1 if it is not
-# published yet.
+# drand_try ROUND prints the round's randomness and returns 0 if it is
+# published, returns 1 if it is not published yet, and returns 2 if drand
+# could not be reached (after retrying transient errors).
 drand_try() {
-    local round="$1" body code tmp
-    tmp="$(mktemp)"
-    code="$(curl -sS --max-time 30 -o "$tmp" -w '%{http_code}' "$DRAND_API/$DRAND_CHAIN/public/$round")" \
-        || { rm -f "$tmp"; die "could not reach drand at $DRAND_API"; }
-    body="$(cat "$tmp")"; rm -f "$tmp"
-    case "$code" in
-        200) ;;
-        425) return 1 ;;
-        *)   die "drand returned HTTP $code for round $round" ;;
-    esac
-    echo "$body" | grep -q "\"round\":$round," || die "drand answered for a different round than $round"
-    echo "$body" | sed -n 's/.*"randomness":"\([0-9a-f]\{64\}\)".*/\1/p'
+    local round="$1" body code tmp attempt
+    for attempt in 1 2 3 4; do
+        tmp="$(mktemp)"
+        code="$(curl -sS --max-time 30 -o "$tmp" -w '%{http_code}' "$DRAND_API/$DRAND_CHAIN/public/$round" 2>/dev/null)" || code="000"
+        body="$(cat "$tmp")"; rm -f "$tmp"
+        case "$code" in
+            200)
+                echo "$body" | grep -q "\"round\":$round," || { echo "ceremony.sh: drand answered for a different round than $round" >&2; return 2; }
+                echo "$body" | sed -n 's/.*"randomness":"\([0-9a-f]\{64\}\)".*/\1/p'
+                return 0 ;;
+            425) return 1 ;;
+        esac
+        [ "$attempt" -lt 4 ] && sleep $(( attempt * 5 ))
+    done
+    echo "ceremony.sh: drand unavailable (HTTP $code) for round $round" >&2
+    return 2
 }
 
 to_epoch() {
@@ -338,12 +380,13 @@ cmd_contribute() {
             --key) KEY="$2"; shift 2 ;;
             --note) note="$2"; shift 2 ;;
             --beacon-delay) delay="$2"; shift 2 ;;
+            --jobs) JOBS="$2"; shift 2 ;;
             --push) PUSH=1; shift ;;
             *) die "contribute: unknown option $1" ;;
         esac
     done
     [[ "$name" =~ $NAME_RE ]] || die "--name must be lowercase letters, digits and dashes (e.g. bank-a)"
-    [[ "$delay" =~ ^[0-9]+$ ]] && [ "$delay" -ge 1 ] || die "--beacon-delay must be a whole number of minutes"
+    [[ "$delay" =~ ^[0-9]+$ ]] && [ "$delay" -ge 3 ] || die "--beacon-delay must be a whole number of minutes, at least 3"
     require_key
     require_ceremony
     require_clean_ceremony
@@ -353,26 +396,40 @@ cmd_contribute() {
     [ -f "$reg" ] || die "$name is not registered: run ./ceremony.sh register --name $name first"
     [ "$(key_body "$reg")" = "$(key_body "$KEY")" ] || die "$KEY is not the key registered for $name"
 
+    # Load drand's schedule now, in this shell, so the check after the
+    # (long) contribution needs no network.
+    drand_params
     local index round
     index="$(info next_index)"
     round="$(round_at_epoch $(( $(date -u +%s) + delay * 60 )))"
     step "contribution #$index; the next release will use drand quicknet round $round ($(round_time "$round"))"
-    step "verifying earlier contributions and contributing to every circuit. Do not interrupt; this can take a while."
+    step "verifying earlier contributions and contributing to every circuit ($JOBS at a time)."
+    step "KEEP THIS MACHINE AWAKE and the command running until it finishes, before $(round_time "$round")."
+    step "If the machine sleeps past that time, the contribution is discarded and must be rerun."
+    # On Ctrl+C or kill, remove the half-written contribution.
+    trap 'discard_uncommitted; die "interrupted; the partial contribution was removed"' INT TERM
     local hash
-    hash="$(tool contribute --dir "$DIR" --name "$name" --beacon-source "drand quicknet round $round" \
-        | grep -E '^[0-9a-f]{64}$' | tail -n1)"
-    [ -n "$hash" ] || die "the tool did not report a contribution hash"
+    hash="$(tool contribute --dir "$DIR" --name "$name" --jobs "$JOBS" --beacon-source "drand quicknet round $round" \
+        | grep -E '^[0-9a-f]{64}$' | tail -n1)" || true
+    trap - INT TERM
+    if [ -z "$hash" ]; then
+        discard_uncommitted
+        die "the contribution failed; nothing was committed"
+    fi
 
     # The beacon must still be unknown now that the contribution is fixed.
-    if drand_try "$round" >/dev/null; then
-        git checkout -q -- "$DIR/manifest.json"
-        git clean -fdq -- "$DIR/phase2"
-        die "drand round $round was published before the contribution finished; rerun with a larger --beacon-delay"
+    # Rounds follow a fixed schedule, so check the clock (with a 2-minute
+    # margin) instead of relying on reaching drand.
+    if [ "$(date -u +%s)" -ge $(( $(round_epoch "$round") - 120 )) ]; then
+        discard_uncommitted
+        die "drand round $round is published at $(round_time "$round"), before or too close to the end of the contribution (did the machine sleep?). It was discarded; rerun with a larger --beacon-delay"
     fi
 
     local id attestation
     id="$(printf '%04d-%s' "$index" "$name")"
     attestation="$DIR/attestations/$id.md"
+    # git does not keep empty directories, so a fresh clone may lack this one.
+    mkdir -p "$DIR/attestations"
     cat > "$attestation" <<EOF
 # Contribution $(printf '%04d' "$index") by $name
 
@@ -413,6 +470,7 @@ cmd_finalize() {
     while [ $# -gt 0 ]; do
         case "$1" in
             --wait) wait=1; shift ;;
+            --jobs) JOBS="$2"; shift 2 ;;
             --key) KEY="$2"; shift 2 ;;
             --push) PUSH=1; shift ;;
             *) die "finalize: unknown option $1" ;;
@@ -423,24 +481,41 @@ cmd_finalize() {
     require_clean_ceremony
     [ "$(info pending)" = "1" ] || die "no contributions since the last release"
 
+    drand_params
     local round value version
     round="$(round_from_source "$(info pending_beacon)")"
     [ -n "$round" ] || die "the announced beacon is not a drand quicknet round"
-    while ! value="$(drand_try "$round")"; do
-        [ "$wait" = "1" ] || die "drand round $round is published at $(round_time "$round"); try again then, or pass --wait"
-        step "waiting for drand round $round ($(round_time "$round"))..."
-        sleep 15
+    local rc
+    while true; do
+        rc=0
+        value="$(drand_try "$round")" || rc=$?
+        [ "$rc" = "0" ] && break
+        if [ "$wait" != "1" ]; then
+            [ "$rc" = "1" ] && die "drand round $round is published at $(round_time "$round"); try again then, or pass --wait"
+            die "could not reach drand; try again later"
+        fi
+        if [ "$rc" = "1" ]; then
+            step "waiting for drand round $round ($(round_time "$round"))..."
+        else
+            step "drand unreachable; retrying..."
+        fi
+        sleep 30
     done
     version=$(( $(info latest_release) + 1 ))
     step "releasing v$version with drand quicknet round $round: $value"
-    tool finalize --dir "$DIR" --beacon "$value" --out "$OUT"
+    trap 'discard_uncommitted; die "interrupted; nothing was released"' INT TERM
+    if ! tool finalize --dir "$DIR" --beacon "$value" --out "$OUT" --jobs "$JOBS"; then
+        discard_uncommitted
+        die "finalize failed; nothing was released"
+    fi
     if [ "$DEMO" = "0" ]; then
         step "converting the Solidity verifiers"
         SKIP_KEYGEN=1 SKIP_CONTRACTS_COPY=1 ./generate_keys_verifiers.sh >/dev/null
     fi
+    trap - INT TERM
     commit_signed "ceremony: release v$version (contributions 1-$(info contributions), drand round $round)" "$DIR" "$OUT"
     maybe_push
-    step "released v$version. Run ./ceremony.sh verify, then deploy the new verifiers in $OUT/ together with the matching gnark-api build."
+    step "released v$version. Next: ./ceremony.sh verify, then ./ceremony.sh copy-verifiers"
 }
 
 cmd_verify() {
@@ -448,12 +523,13 @@ cmd_verify() {
     while [ $# -gt 0 ]; do
         case "$1" in
             --no-ptau) use_ptau=0; shift ;;
+            --jobs) JOBS="$2"; shift 2 ;;
             *) die "verify: unknown option $1" ;;
         esac
     done
     require_ceremony
 
-    local args=(--dir "$DIR")
+    local args=(--dir "$DIR" --jobs "$JOBS")
     [ "$(info latest_release)" != "0" ] && args+=(--out "$OUT")
     if [ "$use_ptau" = "1" ] && [ "$(info phase1_source)" != "insecure-demo" ]; then
         args+=(--ptau "$(fetch_ptau)")
@@ -467,7 +543,10 @@ cmd_verify() {
         [ -n "$version" ] || continue
         round="$(round_from_source "$source")"
         [ -n "$round" ] || die "release v$version beacon is not a drand quicknet round"
-        [ "$(drand_try "$round")" = "$value" ] || die "release v$version beacon does not match drand round $round"
+        local got rc=0
+        got="$(drand_try "$round")" || rc=$?
+        [ "$rc" != "2" ] || die "could not reach drand to check release v$version's beacon; try again later"
+        [ "$rc" = "0" ] && [ "$got" = "$value" ] || die "release v$version beacon does not match drand round $round"
         echo "v$version: drand quicknet round $round matches"
     done < <(tool releases --dir "$DIR" 2>/dev/null | awk -F'\t' 'NF == 4')
 
@@ -492,6 +571,42 @@ cmd_verify() {
     echo "ceremony verifies"
 }
 
+cmd_clean() {
+    if [ -z "$(git status --porcelain -- "$DIR" "$OUT")" ]; then
+        step "nothing to clean in $DIR/ or $OUT/"
+        return
+    fi
+    git status --short -- "$DIR" "$OUT" >&2
+    discard_uncommitted
+    step "removed the uncommitted changes above"
+}
+
+cmd_copy_verifiers() {
+    local contracts="$ROOT/../rayls-sovereign-contracts"
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --contracts) contracts="$2"; shift 2 ;;
+            *) die "copy-verifiers: unknown option $1" ;;
+        esac
+    done
+    [ "$DEMO" = "0" ] || die "demo verifiers are not for the contracts repository"
+    [ "$(info latest_release)" != "0" ] || die "there is no release yet: run ./ceremony.sh finalize first"
+    local base="$contracts/src/rayls-protocol/Enygma" f name dest n=0
+    [ -d "$base/Enygma-DVP" ] && [ -d "$base/Enygma-Payments" ] || die "$contracts does not look like rayls-sovereign-contracts (pass --contracts DIR)"
+    for f in "$OUT"/*Verifier*.sol; do
+        case "$f" in *_raw.sol) continue ;; esac
+        name="$(basename "$f")"
+        case "$name" in
+            EnygmaJoinSplitVerifier.sol|Erc721OwnershipVerifier.sol|Erc1155JoinSplitVerifier.sol) dest="$base/Enygma-DVP" ;;
+            *) dest="$base/Enygma-Payments" ;;
+        esac
+        cp "$f" "$dest/$name"
+        n=$((n + 1))
+    done
+    [ "$n" -gt 0 ] || die "no verifiers found in $OUT/"
+    step "copied $n verifiers into $contracts (release v$(info latest_release)). Review and commit them there."
+}
+
 # --- main -----------------------------------------------------------------
 
 KEY="$(default_key || true)"
@@ -499,7 +614,7 @@ PUSH=0
 cmd="${1:-help}"
 [ $# -gt 0 ] && shift
 case "$cmd" in
-    init|register|contribute|finalize|verify|status) build_tool ;;
+    init|register|contribute|finalize|verify|status|copy-verifiers) build_tool ;;
 esac
 case "$cmd" in
     round-at)   cmd_round_at "$@" ;;
@@ -509,6 +624,8 @@ case "$cmd" in
     finalize)   cmd_finalize "$@" ;;
     verify)     cmd_verify "$@" ;;
     status)     require_ceremony; tool status --dir "$DIR" 2>/dev/null | grep -v '^✓' ;;
+    clean)      cmd_clean ;;
+    copy-verifiers) require_ceremony; cmd_copy_verifiers "$@" ;;
     help|-h|--help) usage ;;
     *) usage >&2; exit 1 ;;
 esac

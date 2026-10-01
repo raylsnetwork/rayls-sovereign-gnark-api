@@ -23,6 +23,7 @@ import (
 	"runtime/debug"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/groth16/bn254/mpcsetup"
@@ -35,7 +36,15 @@ type Ceremony struct {
 	Circuits []Circuit
 	// Log receives progress messages; nil discards them.
 	Log io.Writer
+	// Jobs is how many circuits are processed at once; 0 means DefaultJobs.
+	// Each job needs about 2 GB of memory for the largest circuits.
+	Jobs int
+
+	logMu sync.Mutex
 }
+
+// DefaultJobs is the number of circuits processed in parallel by default.
+const DefaultJobs = 4
 
 // InitOptions selects the phase 1 parameters.
 type InitOptions struct {
@@ -146,27 +155,33 @@ func (c *Ceremony) Contribute(name, beacon string) (Contribution, error) {
 		return Contribution{}, err
 	}
 
+	srs, err := c.loadSRS(m)
+	if err != nil {
+		return Contribution{}, err
+	}
 	idx := len(m.Phase2.Contributions) + 1
 	relDir := fmt.Sprintf("phase2/%04d-%s", idx, name)
-	files := make(map[string]string, len(circuits))
-	commons := srsCache{c: c, m: m}
-	for _, cc := range circuits {
-		srs, err := commons.get(cc.Power)
+	hashes := make([]string, len(circuits))
+	err = c.forEach(circuits, func(i int, cc *compiled) error {
+		latest, _, err := c.replayPhase2(m, cc, srs[cc.Power])
 		if err != nil {
-			return Contribution{}, err
-		}
-		latest, _, err := c.replayPhase2(m, cc, srs)
-		if err != nil {
-			return Contribution{}, err
+			return err
 		}
 		c.logf("contributing to %s...", cc.Name)
 		latest.Contribute()
-		sha, err := writeObject(filepath.Join(c.Dir, relDir, cc.Name+".bin"), latest)
-		if err != nil {
-			_ = os.RemoveAll(filepath.Join(c.Dir, relDir))
-			return Contribution{}, err
+		if hashes[i], err = writeObject(filepath.Join(c.Dir, relDir, cc.Name+".bin"), latest); err != nil {
+			return err
 		}
-		files[cc.Name] = sha
+		c.logf("done %s", cc.Name)
+		return nil
+	})
+	if err != nil {
+		_ = os.RemoveAll(filepath.Join(c.Dir, relDir))
+		return Contribution{}, err
+	}
+	files := make(map[string]string, len(circuits))
+	for i, cc := range circuits {
+		files[cc.Name] = hashes[i]
 	}
 
 	contrib := Contribution{
@@ -205,27 +220,32 @@ func (c *Ceremony) Finalize(beaconHex, outDir string) (*Release, error) {
 	if err != nil {
 		return nil, err
 	}
+	srs, err := c.loadSRS(m)
+	if err != nil {
+		return nil, err
+	}
 	n := len(m.Phase2.Contributions)
-	outputs := make(map[string]string)
-	commons := srsCache{c: c, m: m}
-	for _, cc := range circuits {
-		srs, err := commons.get(cc.Power)
+	written := make([]map[string]string, len(circuits))
+	err = c.forEach(circuits, func(i int, cc *compiled) error {
+		latest, evals, err := c.replayPhase2(m, cc, srs[cc.Power])
 		if err != nil {
-			return nil, err
+			return err
 		}
-		latest, evals, err := c.replayPhase2(m, cc, srs)
-		if err != nil {
-			return nil, err
-		}
-		pk, vk := latest.Seal(srs, evals, beacon)
-		written, err := writeOutputs(outDir, cc, pk, vk)
-		if err != nil {
-			return nil, err
-		}
-		for k, v := range written {
-			outputs[k] = v
+		pk, vk := latest.Seal(srs[cc.Power], evals, beacon)
+		if written[i], err = writeOutputs(outDir, cc, pk, vk); err != nil {
+			return err
 		}
 		c.logf("released %s", cc.Name)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	outputs := make(map[string]string)
+	for _, w := range written {
+		for k, v := range w {
+			outputs[k] = v
+		}
 	}
 	release := Release{
 		Version:       len(m.Phase2.Releases) + 1,
@@ -267,13 +287,12 @@ func (c *Ceremony) Verify(outDir, ptauPath string) error {
 		c.logf("no phase 2 contributions yet")
 		return nil
 	}
-	commons := srsCache{c: c, m: m}
-	for _, cc := range circuits {
-		srs, err := commons.get(cc.Power)
-		if err != nil {
-			return err
-		}
-		_, evals, err := c.replayPhase2(m, cc, srs)
+	srs, err := c.loadSRS(m)
+	if err != nil {
+		return err
+	}
+	err = c.forEach(circuits, func(_ int, cc *compiled) error {
+		_, evals, err := c.replayPhase2(m, cc, srs[cc.Power])
 		if err != nil {
 			return err
 		}
@@ -283,13 +302,12 @@ func (c *Ceremony) Verify(outDir, ptauPath string) error {
 			if err != nil {
 				return fmt.Errorf("release v%d beacon: %w", rel.Version, err)
 			}
-			pk, vk, err := c.sealAt(m, cc, srs, evals, rel.Contributions, beacon)
+			pk, vk, err := c.sealAt(m, cc, srs[cc.Power], evals, rel.Contributions, beacon)
 			if err != nil {
 				return err
 			}
-			latest := i == len(m.Phase2.Releases)-1
 			dir := ""
-			if latest {
+			if i == len(m.Phase2.Releases)-1 {
 				dir = outDir
 			}
 			if err := checkOutputs(rel, cc, pk, vk, dir); err != nil {
@@ -297,6 +315,10 @@ func (c *Ceremony) Verify(outDir, ptauPath string) error {
 			}
 		}
 		c.logf("%s: %d contribution(s) and %d release(s) verify", cc.Name, len(m.Phase2.Contributions), len(m.Phase2.Releases))
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	if outDir != "" && len(m.Phase2.Releases) == 0 {
 		return errors.New("there is no release to compare with " + outDir)
@@ -327,12 +349,12 @@ func (c *Ceremony) checkPhase1(m *Manifest, ptauPath string) error {
 			return err
 		}
 	}
-	commons := srsCache{c: c, m: m}
+	all, err := c.loadSRS(m)
+	if err != nil {
+		return err
+	}
 	for _, p := range powers {
-		srs, err := commons.get(p)
-		if err != nil {
-			return err
-		}
+		srs := all[p]
 		if len(srs.G1.AlphaTau) != 1<<p {
 			return fmt.Errorf("phase 1 parameters for 2^%d have the wrong size", p)
 		}
@@ -471,35 +493,61 @@ func (c *Ceremony) checkCircuits(m *Manifest) ([]*compiled, error) {
 }
 
 func (c *Ceremony) logf(format string, args ...any) {
-	if c.Log != nil {
-		fmt.Fprintf(c.Log, format+"\n", args...)
+	if c.Log == nil {
+		return
 	}
+	c.logMu.Lock()
+	defer c.logMu.Unlock()
+	fmt.Fprintf(c.Log, format+"\n", args...)
 }
 
-// srsCache loads each phase 1 parameter set once.
-type srsCache struct {
-	c     *Ceremony
-	m     *Manifest
-	byPow map[int]*mpcsetup.SrsCommons
+func (c *Ceremony) jobs() int {
+	if c.Jobs > 0 {
+		return c.Jobs
+	}
+	return DefaultJobs
 }
 
-func (s *srsCache) get(power int) (*mpcsetup.SrsCommons, error) {
-	if srs, ok := s.byPow[power]; ok {
-		return srs, nil
+// forEach runs fn for every circuit, at most jobs() at a time, and returns the
+// first error in circuit order.
+func (c *Ceremony) forEach(circuits []*compiled, fn func(i int, cc *compiled) error) error {
+	errs := make([]error, len(circuits))
+	sem := make(chan struct{}, c.jobs())
+	var wg sync.WaitGroup
+	for i, cc := range circuits {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			errs[i] = fn(i, cc)
+		}()
 	}
-	rec, err := s.m.srs(power)
-	if err != nil {
-		return nil, err
+	wg.Wait()
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
 	}
-	srs := new(mpcsetup.SrsCommons)
-	if err := readObject(filepath.Join(s.c.Dir, rec.Path), rec.SHA256, srs); err != nil {
-		return nil, err
+	return nil
+}
+
+// loadSRS reads every phase 1 parameter set the circuits need, keyed by
+// power. The sets are only read afterwards, so workers can share them.
+func (c *Ceremony) loadSRS(m *Manifest) (map[int]*mpcsetup.SrsCommons, error) {
+	out := make(map[int]*mpcsetup.SrsCommons, len(m.Phase1.SRS))
+	for _, p := range circuitPowers(m) {
+		rec, err := m.srs(p)
+		if err != nil {
+			return nil, err
+		}
+		srs := new(mpcsetup.SrsCommons)
+		if err := readObject(filepath.Join(c.Dir, rec.Path), rec.SHA256, srs); err != nil {
+			return nil, err
+		}
+		out[p] = srs
 	}
-	if s.byPow == nil {
-		s.byPow = make(map[int]*mpcsetup.SrsCommons)
-	}
-	s.byPow[power] = srs
-	return srs, nil
+	return out, nil
 }
 
 // artifacts returns one circuit's release artifacts keyed by outDir-relative
