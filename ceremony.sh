@@ -53,9 +53,8 @@ Usage: ./ceremony.sh <command> [options]
   register   --name NAME [--key PUBKEY] [--push]
              Register your SSH public key (once per institution or user).
 
-  contribute --name NAME [--key PUBKEY] [--note TEXT] [--beacon-delay MIN]
-             [--skip-verify] [--push]
-             Verify the transcript, add your phase 2 contribution, announce a
+  contribute --name NAME [--key PUBKEY] [--note TEXT] [--beacon-delay MIN] [--push]
+             Verify every earlier contribution, add yours on top, announce a
              drand round MIN minutes ahead (default $DEFAULT_DELAY) for the next
              release, write an attestation and make a signed commit.
 
@@ -332,14 +331,13 @@ cmd_register() {
 }
 
 cmd_contribute() {
-    local name="" note="" skip_verify=0 delay="$DEFAULT_DELAY"
+    local name="" note="" delay="$DEFAULT_DELAY"
     while [ $# -gt 0 ]; do
         case "$1" in
             --name) name="$2"; shift 2 ;;
             --key) KEY="$2"; shift 2 ;;
             --note) note="$2"; shift 2 ;;
             --beacon-delay) delay="$2"; shift 2 ;;
-            --skip-verify) skip_verify=1; shift ;;
             --push) PUSH=1; shift ;;
             *) die "contribute: unknown option $1" ;;
         esac
@@ -355,16 +353,11 @@ cmd_contribute() {
     [ -f "$reg" ] || die "$name is not registered: run ./ceremony.sh register --name $name first"
     [ "$(key_body "$reg")" = "$(key_body "$KEY")" ] || die "$KEY is not the key registered for $name"
 
-    if [ "$skip_verify" = "0" ]; then
-        step "verifying the transcript so far (use --skip-verify only if you just verified it)"
-        tool verify --dir "$DIR" >/dev/null
-    fi
-
     local index round
     index="$(info next_index)"
     round="$(round_at_epoch $(( $(date -u +%s) + delay * 60 )))"
     step "contribution #$index; the next release will use drand quicknet round $round ($(round_time "$round"))"
-    step "contributing to every circuit. Do not interrupt; this can take a while."
+    step "verifying earlier contributions and contributing to every circuit. Do not interrupt; this can take a while."
     local hash
     hash="$(tool contribute --dir "$DIR" --name "$name" --beacon-source "drand quicknet round $round" \
         | grep -E '^[0-9a-f]{64}$' | tail -n1)"
@@ -445,10 +438,9 @@ cmd_finalize() {
         step "converting the Solidity verifiers"
         SKIP_KEYGEN=1 SKIP_CONTRACTS_COPY=1 ./generate_keys_verifiers.sh >/dev/null
     fi
-    tool verify --dir "$DIR" --out "$OUT" >/dev/null
     commit_signed "ceremony: release v$version (contributions 1-$(info contributions), drand round $round)" "$DIR" "$OUT"
     maybe_push
-    step "released v$version. Deploy the new verifiers in $OUT/ together with the matching gnark-api build."
+    step "released v$version. Run ./ceremony.sh verify, then deploy the new verifiers in $OUT/ together with the matching gnark-api build."
 }
 
 cmd_verify() {

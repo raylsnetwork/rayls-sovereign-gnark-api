@@ -122,9 +122,9 @@ func (c *Ceremony) Init(opts InitOptions) (*Manifest, error) {
 }
 
 // Contribute adds fresh randomness to every circuit's phase 2 and announces
-// beacon, a future public random value, for the next release. It checks the
-// latest contribution against its predecessor first. The randomness exists
-// only in memory.
+// beacon, a future public random value, for the next release. It first
+// verifies every earlier contribution, then builds on the latest one. The
+// randomness exists only in memory.
 func (c *Ceremony) Contribute(name, beacon string) (Contribution, error) {
 	if !namePattern.MatchString(name) {
 		return Contribution{}, fmt.Errorf("invalid contributor name %q: use lowercase letters, digits and dashes", name)
@@ -155,7 +155,7 @@ func (c *Ceremony) Contribute(name, beacon string) (Contribution, error) {
 		if err != nil {
 			return Contribution{}, err
 		}
-		latest, err := c.latestPhase2(m, cc, srs)
+		latest, _, err := c.replayPhase2(m, cc, srs)
 		if err != nil {
 			return Contribution{}, err
 		}
@@ -213,13 +213,11 @@ func (c *Ceremony) Finalize(beaconHex, outDir string) (*Release, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := c.replayPhase2(m, cc, srs); err != nil {
-			return nil, err
-		}
-		pk, vk, err := c.sealAt(m, cc, srs, n, beacon)
+		latest, evals, err := c.replayPhase2(m, cc, srs)
 		if err != nil {
 			return nil, err
 		}
+		pk, vk := latest.Seal(srs, evals, beacon)
 		written, err := writeOutputs(outDir, cc, pk, vk)
 		if err != nil {
 			return nil, err
@@ -262,13 +260,21 @@ func (c *Ceremony) Verify(outDir, ptauPath string) error {
 	if err := checkReleases(m); err != nil {
 		return err
 	}
+	if len(m.Phase2.Contributions) == 0 {
+		if outDir != "" {
+			return errors.New("there is no release to compare with " + outDir)
+		}
+		c.logf("no phase 2 contributions yet")
+		return nil
+	}
 	commons := srsCache{c: c, m: m}
 	for _, cc := range circuits {
 		srs, err := commons.get(cc.Power)
 		if err != nil {
 			return err
 		}
-		if err := c.replayPhase2(m, cc, srs); err != nil {
+		_, evals, err := c.replayPhase2(m, cc, srs)
+		if err != nil {
 			return err
 		}
 		for i := range m.Phase2.Releases {
@@ -277,7 +283,7 @@ func (c *Ceremony) Verify(outDir, ptauPath string) error {
 			if err != nil {
 				return fmt.Errorf("release v%d beacon: %w", rel.Version, err)
 			}
-			pk, vk, err := c.sealAt(m, cc, srs, rel.Contributions, beacon)
+			pk, vk, err := c.sealAt(m, cc, srs, evals, rel.Contributions, beacon)
 			if err != nil {
 				return err
 			}
@@ -378,61 +384,36 @@ func checkReleases(m *Manifest) error {
 }
 
 // replayPhase2 verifies every phase 2 contribution for one circuit, in order.
-func (c *Ceremony) replayPhase2(m *Manifest, cc *compiled, srs *mpcsetup.SrsCommons) error {
+// It returns the latest state (the initial one if nobody has contributed) and
+// the circuit's evaluations, which sealing needs. Initialising is the
+// expensive step, so it happens once per circuit.
+func (c *Ceremony) replayPhase2(m *Manifest, cc *compiled, srs *mpcsetup.SrsCommons) (*mpcsetup.Phase2, *mpcsetup.Phase2Evaluations, error) {
+	c.logf("preparing %s (2^%d)...", cc.Name, cc.Power)
 	prev := new(mpcsetup.Phase2)
-	prev.Initialize(cc.R1CS, srs)
+	evals := prev.Initialize(cc.R1CS, srs)
 	for _, contrib := range m.Phase2.Contributions {
 		next, err := c.readPhase2(contrib, cc.Name)
 		if err != nil {
-			return err
+			return nil, nil, err
 		}
 		if err := prev.Verify(next); err != nil {
-			return fmt.Errorf("contribution %d by %s for %s does not verify: %w", contrib.Index, contrib.Name, cc.Name, err)
+			return nil, nil, fmt.Errorf("contribution %d by %s for %s does not verify: %w", contrib.Index, contrib.Name, cc.Name, err)
 		}
 		prev = next
 	}
-	return nil
+	return prev, &evals, nil
 }
 
 // sealAt derives the keys for one circuit from the first n contributions and
-// a beacon. The caller must have verified the transcript.
-func (c *Ceremony) sealAt(m *Manifest, cc *compiled, srs *mpcsetup.SrsCommons, n int, beacon []byte) (groth16.ProvingKey, groth16.VerifyingKey, error) {
-	evals := new(mpcsetup.Phase2).Initialize(cc.R1CS, srs)
+// a beacon, using evals from replayPhase2. Seal only reads evals, so they can
+// be shared across releases. The caller must have verified the transcript.
+func (c *Ceremony) sealAt(m *Manifest, cc *compiled, srs *mpcsetup.SrsCommons, evals *mpcsetup.Phase2Evaluations, n int, beacon []byte) (groth16.ProvingKey, groth16.VerifyingKey, error) {
 	last, err := c.readPhase2(m.Phase2.Contributions[n-1], cc.Name)
 	if err != nil {
 		return nil, nil, err
 	}
-	pk, vk := last.Seal(srs, &evals, beacon)
+	pk, vk := last.Seal(srs, evals, beacon)
 	return pk, vk, nil
-}
-
-// latestPhase2 returns the newest phase 2 state for one circuit after checking
-// it against its predecessor, or the initial state if nobody has contributed.
-func (c *Ceremony) latestPhase2(m *Manifest, cc *compiled, srs *mpcsetup.SrsCommons) (*mpcsetup.Phase2, error) {
-	fresh := func() *mpcsetup.Phase2 {
-		p := new(mpcsetup.Phase2)
-		p.Initialize(cc.R1CS, srs)
-		return p
-	}
-	cs := m.Phase2.Contributions
-	if len(cs) == 0 {
-		return fresh(), nil
-	}
-	pred := fresh()
-	if len(cs) > 1 {
-		var err error
-		if pred, err = c.readPhase2(cs[len(cs)-2], cc.Name); err != nil {
-			return nil, err
-		}
-	}
-	last, err := c.readPhase2(cs[len(cs)-1], cc.Name)
-	if err != nil {
-		return nil, err
-	}
-	if err := pred.Verify(last); err != nil {
-		return nil, fmt.Errorf("latest contribution by %s for %s does not verify: %w", cs[len(cs)-1].Name, cc.Name, err)
-	}
-	return last, nil
 }
 
 func (c *Ceremony) readPhase2(contrib Contribution, circuit string) (*mpcsetup.Phase2, error) {
