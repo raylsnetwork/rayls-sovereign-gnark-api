@@ -123,6 +123,7 @@ circuit files.
 
 | Command | What it does |
 |---|---|
+| `join` | For a new participant: `verify`, `register`, `contribute`, `finalize --wait` and (optionally) `copy-verifiers`, in order |
 | `init` | Compiles the 18 circuits, records their R1CS hashes, imports phase 1 |
 | `register` | Adds the contributor's SSH public key to the allowlist |
 | `contribute` | Checks and extends the chain, announces the next beacon, writes an attestation, signed commit |

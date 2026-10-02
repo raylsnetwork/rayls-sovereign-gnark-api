@@ -234,7 +234,7 @@ and re-derive the keys in `last_build/`.
 > made the previous releases, and ideally from you.** Until then, a release only rests on the
 > contributors it already includes: the first release, with a single contributor, rests
 > entirely on that one participant. **Ideally, every institution or user running this
-> repository contributes once** (steps 2 and 3 below). Your own contribution is the
+> repository contributes once**, with [`./ceremony.sh join`](#join-the-ceremony-one-command). Your own contribution is the
 > only one you don't have to trust.
 
 Background and design: [docs/trusted-setup-ceremony.md](docs/trusted-setup-ceremony.md).
@@ -250,7 +250,48 @@ Background and design: [docs/trusted-setup-ceremony.md](docs/trusted-setup-cerem
 - For contributing: ideally a fresh machine or VM that you destroy afterwards, **kept awake and
   plugged in for the whole contribution** (see [How long it takes](#how-long-it-takes))
 
-### Steps, in order
+### Join the ceremony (one command)
+
+Phase 1 is already imported, so a new institution or user joins with a single command. It runs
+every step below in order and stops at the first error:
+
+```bash
+git switch main && git pull && git lfs pull
+./ceremony.sh join --name bank-b --note "Fresh VM, destroyed afterwards" \
+    --contracts ../rayls-sovereign-contracts --push
+```
+
+| Step | What `join` does | Time |
+|---|---|---|
+| 1. verify | Checks everything done so far, so you don't have to trust it (`--skip-verify` skips it; `contribute` still checks every earlier contribution) | ~20 min |
+| 2. register | Registers your SSH key under `--name`; skipped if it already is | seconds |
+| 3. contribute | Adds your randomness and announces a drand round `--beacon-delay` minutes ahead (default 180) | ~20 min |
+| 4. finalize | Waits for that round, then releases keys that include your contribution into `last_build/` | the rest of the delay, then ~20 min |
+| 5. copy-verifiers | With `--contracts DIR`, copies the new verifiers there for you to review and commit | seconds |
+
+Everything is committed on a `ceremony/join-NAME` branch (when started from `main`) and pushed at
+the end with `--push`; then open a pull request. Keep the machine **awake and plugged in** until
+it finishes.
+
+Write down the **contribution hash** it prints and publish it: it is how you (and anyone else)
+confirm later that your contribution is in the keys.
+
+Options:
+
+- `--beacon-delay MIN`: how far ahead the beacon is. It must still be in the future when your
+  contribution finishes (~20 minutes), so 40 to 60 minutes is enough on a fast machine; the
+  default of 180 leaves room for slow ones.
+- `--no-finalize`: stop after contributing, e.g. to let other institutions contribute before the
+  next release. Anyone can release later with `./ceremony.sh finalize --wait`.
+- `--key PUBKEY`, `--jobs N`, `--note TEXT`: as for `contribute`.
+
+Each contributor needs **its own SSH key**: `register` refuses a key already registered under
+another name.
+
+### Steps, one by one
+
+`join` runs steps 2 to 6 below. Run them separately to control each one, e.g. to batch several
+contributions into one release.
 
 Run everything from the repository root, on an up-to-date checkout. Nothing is pushed unless
 you pass `--push`.
@@ -312,7 +353,8 @@ This writes the new release's keys, R1CS and Solidity verifiers to `last_build/`
 `verify` checks phase 1 against the Perpetual Powers of Tau file, replays every phase 2
 contribution cryptographically, re-derives every release, checks each release's beacon against
 drand, checks every contribution is signed by the registered key of the institution it names,
-and checks `last_build/` matches the latest release byte for byte.
+and checks `last_build/` matches the latest release (keys and R1CS byte for byte, Solidity
+verifiers by their verifying-key constants).
 
 **6. `copy-verifiers`, push, and deploy.**
 
@@ -363,16 +405,18 @@ Demo mode runs the same steps with two tiny circuits and an insecure local phase
 git clone <this repo> ceremony-rehearsal && cd ceremony-rehearsal
 export CEREMONY_DEMO=1
 ./ceremony.sh init
-./ceremony.sh register --name my-bank
-./ceremony.sh contribute --name my-bank      # announces a beacon 3 minutes ahead in demo mode
-./ceremony.sh finalize --wait
+./ceremony.sh join --name my-bank           # announces a beacon 3 minutes ahead in demo mode
 ./ceremony.sh verify
 ```
+
+To rehearse a second participant, create another key (`ssh-keygen -t ed25519 -f /tmp/other`)
+and run `./ceremony.sh join --name other-bank --key /tmp/other.pub`.
 
 ### Command reference
 
 | # | Command | What it does | What it commits |
 |---|---|---|---|
+| | `join --name NAME [--contracts DIR] [--beacon-delay MIN] [--no-finalize] [--skip-verify]` | Steps 5, 2, 3, 4 and 6, in that order, for a new participant | everything steps 2–4 commit |
 | 1 | `init [--ptau FILE]` | Imports phase 1 (once per repository) | `ceremony/manifest.json`, phase 1 parameters, the Git LFS rule |
 | 2 | `register --name NAME [--key PUBKEY]` | Registers your signing key | `ceremony/contributors/NAME.pub`, `allowed_signers` |
 | 3 | `contribute --name NAME [--note TEXT] [--beacon-delay MIN] [--jobs N]` | Adds your phase 2 contribution and announces the next beacon | the contribution, its attestation, the manifest |
@@ -383,7 +427,7 @@ export CEREMONY_DEMO=1
 | | `clean` | Removes leftovers of an interrupted run | nothing |
 | | `round-at "YYYY-MM-DD HH:MM UTC"` | Prints the drand round for a time | nothing |
 
-`register`, `contribute` and `finalize` also accept `--push`. Run `./ceremony.sh help` for all
+`join`, `register`, `contribute` and `finalize` also accept `--push`. Run `./ceremony.sh help` for all
 options; `CEREMONY_JOBS` sets the default for `--jobs` (0, the default, picks it automatically).
 
 ### Tips for contributors

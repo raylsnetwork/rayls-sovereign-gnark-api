@@ -56,6 +56,16 @@ usage() {
     cat <<EOF
 Usage: ./ceremony.sh <command> [options]
 
+Joining the ceremony (all of steps 2-6 below, in order):
+
+  join          --name NAME [--key PUBKEY] [--note TEXT] [--beacon-delay MIN]
+                [--jobs N] [--contracts DIR] [--skip-verify] [--no-finalize]
+                [--push]
+                Verify the ceremony so far, register, contribute, wait for the
+                announced drand round and release new keys, and (with
+                --contracts) copy the verifiers. --no-finalize stops after
+                contributing, to let others contribute before the next release.
+
 Commands, in the order you run them:
 
   1. init       [--ptau FILE] [--key PUBKEY]
@@ -230,6 +240,7 @@ use_branch() {
 }
 
 maybe_push() {
+    [ "$JOINING" = "1" ] && return 0
     if [ "$PUSH" = "1" ]; then
         git push -u origin HEAD
         step "pushed $(git branch --show-current); open a pull request into $DEFAULT_BRANCH"
@@ -583,6 +594,72 @@ cmd_verify() {
     echo "ceremony verifies"
 }
 
+cmd_join() {
+    local name="" note="" delay="$DEFAULT_DELAY" contracts="" pre_verify=1 finalize=1
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --name) name="$2"; shift 2 ;;
+            --key) KEY="$2"; shift 2 ;;
+            --note) note="$2"; shift 2 ;;
+            --beacon-delay) delay="$2"; shift 2 ;;
+            --jobs) JOBS="$2"; shift 2 ;;
+            --contracts) contracts="$2"; shift 2 ;;
+            --skip-verify) pre_verify=0; shift ;;
+            --no-finalize) finalize=0; shift ;;
+            --push) PUSH=1; shift ;;
+            *) die "join: unknown option $1" ;;
+        esac
+    done
+    [[ "$name" =~ $NAME_RE ]] || die "--name must be lowercase letters, digits and dashes (e.g. bank-a)"
+    [[ "$delay" =~ ^[0-9]+$ ]] && [ "$delay" -ge 3 ] || die "--beacon-delay must be a whole number of minutes, at least 3"
+    require_key
+    require_ceremony
+    require_clean_ceremony
+    require_up_to_date
+    if [ "$DEMO" = "0" ]; then
+        command -v git-lfs >/dev/null || die "Git LFS is not installed (https://git-lfs.com)"
+        step "fetching the ceremony files from Git LFS"
+        git lfs pull || die "git lfs pull failed"
+    fi
+
+    # Push once at the end, not after each step.
+    JOINING=1
+    use_branch "join-$name"
+
+    if [ "$pre_verify" = "1" ]; then
+        step "step 1/5: verifying everything done so far"
+        cmd_verify --jobs "$JOBS"
+    else
+        step "step 1/5: verification skipped (contribute still checks every earlier contribution)"
+    fi
+
+    step "step 2/5: registering $name"
+    cmd_register --name "$name"
+
+    step "step 3/5: contributing"
+    local args=(--name "$name" --beacon-delay "$delay" --jobs "$JOBS")
+    [ -n "$note" ] && args+=(--note "$note")
+    cmd_contribute "${args[@]}"
+
+    if [ "$finalize" = "1" ]; then
+        step "step 4/5: releasing keys (waits for the announced drand round)"
+        cmd_finalize --wait --jobs "$JOBS"
+    else
+        step "step 4/5: release skipped; anyone can run ./ceremony.sh finalize --wait later"
+    fi
+
+    if [ "$finalize" = "1" ] && [ -n "$contracts" ]; then
+        step "step 5/5: copying the verifiers into $contracts"
+        cmd_copy_verifiers --contracts "$contracts"
+    else
+        step "step 5/5: verifiers not copied (pass --contracts DIR, or run ./ceremony.sh copy-verifiers later)"
+    fi
+
+    JOINING=0
+    maybe_push
+    step "done: $name joined the ceremony on branch $(git branch --show-current)"
+}
+
 cmd_clean() {
     if [ -z "$(git status --porcelain -- "$DIR" "$OUT")" ]; then
         step "nothing to clean in $DIR/ or $OUT/"
@@ -623,14 +700,16 @@ cmd_copy_verifiers() {
 
 KEY="$(default_key || true)"
 PUSH=0
+JOINING=0
 cmd="${1:-help}"
 [ $# -gt 0 ] && shift
 case "$cmd" in
-    init|register|contribute|finalize|verify|status|copy-verifiers) build_tool ;;
+    init|join|register|contribute|finalize|verify|status|copy-verifiers) build_tool ;;
 esac
 case "$cmd" in
     round-at)   cmd_round_at "$@" ;;
     init)       cmd_init "$@" ;;
+    join)       cmd_join "$@" ;;
     register)   cmd_register "$@" ;;
     contribute) cmd_contribute "$@" ;;
     finalize)   cmd_finalize "$@" ;;
