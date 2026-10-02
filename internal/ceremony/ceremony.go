@@ -578,7 +578,7 @@ func (c *Ceremony) loadSRS(m *Manifest) (map[int]*mpcsetup.SrsCommons, error) {
 
 // artifacts returns one circuit's release artifacts keyed by outDir-relative
 // path. The raw Solidity verifier is keyed <Verifier>_raw.sol, the name it has
-// after generate_keys_verifiers.sh converts it.
+// after convert_verifiers.sh converts it.
 func artifacts(cc *compiled, pk groth16.ProvingKey, vk groth16.VerifyingKey) (map[string][]byte, error) {
 	out := make(map[string][]byte, 4)
 	for rel, obj := range map[string]io.WriterTo{
@@ -672,7 +672,7 @@ func solidityConstants(src []byte) []string {
 
 // checkVerifiers checks that <Verifier>.sol and, if present,
 // <Verifier>_raw.sol in outDir embed the same verifying key as raw, the
-// verifier exported from the release. generate_keys_verifiers.sh rewrites
+// verifier exported from the release. convert_verifiers.sh rewrites
 // both files (contract name, wrapper function), so only their constants are
 // compared, not their bytes.
 func checkVerifiers(outDir, verifier string, raw []byte) error {

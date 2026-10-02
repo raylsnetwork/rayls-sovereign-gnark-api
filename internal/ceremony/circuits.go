@@ -31,7 +31,7 @@ type Circuit struct {
 }
 
 // ProductionCircuits returns the 18 circuits served by the API, named as in
-// config/config.go and generate_keys_verifiers.sh.
+// config/config.go and cmd/setup/setup_keys_verifiers.
 func ProductionCircuits() []Circuit {
 	return []Circuit{
 		{"Enygmak2", "EnygmaVerifierk2", func() frontend.Circuit { return &enygma.Enygmak2Circuit{} }},

@@ -113,8 +113,9 @@ This is a **zkSNARK proof generation API** using:
 ### Build & Run Commands
 ```bash
 # Compile circuits and generate keys
-./scripts/compile_circuits_gen_executables.sh
-./scripts/generate_keys_verifiers.sh
+./compile_circuits_gen_executables.sh
+./generate_keys_verifiers.sh   # development keys only; refuses to overwrite a ceremony release
+./convert_verifiers.sh         # convert Solidity verifiers in last_build/ (no keygen)
 
 # Run server locally
 go run cmd/server/main.go

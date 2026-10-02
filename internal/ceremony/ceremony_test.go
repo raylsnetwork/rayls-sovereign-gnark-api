@@ -612,7 +612,7 @@ func TestCeremonyParallelismDoesNotChangeOutputs(t *testing.T) {
 	}
 }
 
-// convertVerifier mimics generate_keys_verifiers.sh: <Verifier>_raw.sol gets a
+// convertVerifier mimics convert_verifiers.sh: <Verifier>_raw.sol gets a
 // renamed contract and a wrapper function, and <Verifier>.sol changes too.
 func convertVerifier(t *testing.T, out, verifier string) {
 	t.Helper()

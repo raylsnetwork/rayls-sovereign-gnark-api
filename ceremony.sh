@@ -529,7 +529,7 @@ cmd_finalize() {
     fi
     if [ "$DEMO" = "0" ]; then
         step "converting the Solidity verifiers"
-        SKIP_KEYGEN=1 SKIP_CONTRACTS_COPY=1 ./generate_keys_verifiers.sh >/dev/null
+        SKIP_CONTRACTS_COPY=1 ./convert_verifiers.sh >/dev/null
     fi
     trap - INT TERM
     commit_signed "ceremony: release v$version (contributions 1-$(info contributions), drand round $round)" "$DIR" "$OUT"

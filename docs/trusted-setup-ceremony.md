@@ -11,12 +11,16 @@ proving and verifying keys from them, and must then throw the numbers away.
 Anyone who kept them (the "toxic waste") can forge proofs that the verifier
 contracts accept, and nothing on chain would reveal it.
 
-Until the first release, the keys in `last_build/` come from a single-party
-`groth16.Setup` in `cmd/setup/setup_keys_verifiers/setup_keys_verifiers.go`, so
-whoever ran it could forge proofs. gnark-safety reports this as 18
-`GNARK_UNSAFE_SETUP` findings, one per production circuit. (A 19th, in
-`cmd/setup/generate_h_parameter`, only self-checks the H point, never persists
-its keys, and is suppressed with that reason.)
+Before the first release, the keys in `last_build/` came from a single-party
+`groth16.Setup` in `cmd/setup/setup_keys_verifiers`, so whoever ran it could
+forge proofs. That program (`./generate_keys_verifiers.sh`) remains for
+development only: it refuses to run while `ceremony/manifest.json` has a
+release, since it would overwrite the release's keys, unless given `--force`.
+Its one `groth16.Setup` call is suppressed for gnark-safety with that reason,
+as is the one in `cmd/setup/generate_h_parameter`, which only self-checks the H
+point and never persists its keys. `./convert_verifiers.sh`, which both
+`ceremony.sh finalize` and the development script run, only rewrites the
+Solidity verifiers and never generates keys.
 
 ## The two phases
 
@@ -195,6 +199,6 @@ each institution runs `./ceremony.sh verify`.
       request.
 - [ ] Add a startup check in gnark-api that refuses keys whose hashes differ
       from the latest release in `ceremony/manifest.json`.
-- [ ] Remove or gate `setup_keys_verifiers.go` so single-party keys can't be
-      used in production.
+- [x] Gate `setup_keys_verifiers.go` so single-party keys can't overwrite a
+      release: it refuses while the ceremony has one, unless `--force`.
 - [ ] Check on-chain history for proofs forged before the circuit fixes.

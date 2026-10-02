@@ -47,9 +47,13 @@ NOTHING, just up the container.
 If you've changed any circuit logic, you MUST regenerate keys and verifiers.
 The steps below use a single-party setup and are for **development only**;
 production keys come from the [trusted-setup ceremony](#-trusted-setup-ceremony).
+Once the ceremony has a release, `generate_keys_verifiers.sh` refuses to overwrite
+its keys; `--force` does it anyway for local experiments, which must not be committed
+(restore with `git checkout -- last_build`). A circuit change for production needs a
+new ceremony (see [docs/trusted-setup-ceremony.md](docs/trusted-setup-ceremony.md)).
 
 ```bash
-# A. Generate new keys and verifiers
+# A. Generate new development keys and verifiers
 ./generate_keys_verifiers.sh
 
 # B. Commit artifacts to Git LFS (commits only last_build/; add --push to push)
@@ -140,7 +144,7 @@ git lfs checkout
 
 ## ⚠️ Important Notes
 
-- **Circuit changes = New keys required**: Always run `generate_keys_verifiers.sh` after modifying circuits
+- **Circuit changes = New keys required**: run `generate_keys_verifiers.sh` for development keys; production keys come from the ceremony
 - **Large files**: The `last_build/` directory contains large binary files managed by Git LFS
 - **Team collaboration**: All team members must have Git LFS installed
 - **After generating keys**: Always run `update_last_build_lfs.sh` to commit changes to LFS. It commits only `last_build/`, and pushes only with `--push`
@@ -203,13 +207,13 @@ This ensures only code changes are merged while preserving the target branch's g
 
 ## 🔑 Proving & Verifying Keys
 
-Until the first ceremony release, the Groth16 proving and verifying keys committed under
-`last_build/` (via Git LFS) are produced by a single-party `groth16.Setup(...)`. They are
-**development/testing artifacts**: whoever ran that setup could forge proofs, so do not rely on
-them for any production trust assumptions.
-
-After a ceremony release, `last_build/` holds that release's keys, and `./ceremony.sh verify`
+`last_build/` holds the keys of the latest ceremony release, and `./ceremony.sh verify`
 proves they were derived from the transcript in `ceremony/`.
+
+`./generate_keys_verifiers.sh` produces keys from a single-party `groth16.Setup(...)` instead.
+They are **development/testing artifacts**: whoever ran that setup could forge proofs, so it
+refuses to overwrite a ceremony release unless given `--force`. `./convert_verifiers.sh` only
+converts the Solidity verifiers in `last_build/` and never touches keys.
 
 ## 🔐 Trusted-Setup Ceremony
 
