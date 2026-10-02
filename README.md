@@ -269,7 +269,7 @@ git switch main && git pull && git lfs pull
 |---|---|---|
 | 1. verify | Checks everything done so far, so you don't have to trust it (`--skip-verify` skips it; `contribute` still checks every earlier contribution) | ~20 min |
 | 2. register | Registers your SSH key under `--name`; skipped if it already is | seconds |
-| 3. contribute | Adds your randomness and announces a drand round `--beacon-delay` minutes ahead (default 180) | ~20 min |
+| 3. contribute | Adds your randomness and announces a drand round `--beacon-delay` minutes ahead (default 45) | ~20 min |
 | 4. finalize | Waits for that round, then releases keys that include your contribution into `last_build/` | the rest of the delay, then ~20 min |
 | 5. copy-verifiers | With `--contracts DIR`, copies the new verifiers there for you to review and commit | seconds |
 
@@ -283,8 +283,8 @@ confirm later that your contribution is in the keys.
 Options:
 
 - `--beacon-delay MIN`: how far ahead the beacon is. It must still be in the future when your
-  contribution finishes (~20 minutes), so 40 to 60 minutes is enough on a fast machine; the
-  default of 180 leaves room for slow ones.
+  contribution finishes (~20 minutes). The default of 45 is enough on a fast machine; use more
+  on a slow or memory-limited one.
 - `--no-finalize`: stop after contributing, e.g. to let other institutions contribute before the
   next release. Anyone can release later with `./ceremony.sh finalize --wait`.
 - `--key PUBKEY`, `--jobs N`, `--note TEXT`: as for `contribute`.
@@ -327,7 +327,7 @@ in your name must be signed by it:
 It:
 
 1. checks you are up to date and verifies every earlier contribution;
-2. announces a future drand round (`--beacon-delay`, default 180 minutes ahead) as the beacon for
+2. announces a future drand round (`--beacon-delay`, default 45 minutes ahead) as the beacon for
    the next release, and prints when that is;
 3. adds your randomness to every circuit on top of the latest contribution (in memory only,
    never written to disk);
@@ -385,8 +385,8 @@ the 2^16 and 2^17 circuits.
 
 The announced beacon round must still be in the future when `contribute` finishes. If it isn't
 (for example because the machine slept), the contribution is **discarded automatically** and you
-run `contribute` again with a larger `--beacon-delay`. The default of 180 minutes leaves a wide
-margin on a machine like the one above; on a much slower or memory-limited machine (fewer
+run `contribute` again with a larger `--beacon-delay`. The default of 45 minutes leaves about a
+25-minute margin on a machine like the one above; on a much slower or memory-limited machine (fewer
 `--jobs`), use more.
 
 ### If something goes wrong

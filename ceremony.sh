@@ -38,9 +38,9 @@ else
     DIR="ceremony"
     OUT="last_build"
     # A contribution takes about 20 minutes on a 20-core laptop; keep a
-    # generous margin for slower machines: a round published before the
-    # contribution finishes forces a rerun.
-    DEFAULT_DELAY=180
+    # margin over that: a round published before the contribution finishes
+    # forces a rerun. Slower machines should pass a larger --beacon-delay.
+    DEFAULT_DELAY=45
 fi
 
 TOOL_DIR=""

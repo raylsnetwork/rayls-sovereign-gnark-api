@@ -85,7 +85,7 @@ v3:  [you] ─▶ [bank-b] ─▶ [bank-c] ─▶ beacon 3 ─▶ keys v3
   of the latest contribution, verifying every earlier contribution first. The
   contribution announces a future drand quicknet round as the beacon for the
   next release. The script picks the round a configurable delay ahead (default
-  180 minutes) and discards the contribution if, by the clock, the round is
+  45 minutes) and discards the contribution if, by the clock, the round is
   published (or within 2 minutes of it) before the contribution is finished,
   e.g. because the machine slept.
 - **Release.** Once that round is published, anyone can finalize: the tool
