@@ -12,12 +12,12 @@ var rangeCircuit = frontend.Variable("1000000000000000000000000000000000000")
 
 type EnygmaJoinSplitCircuit struct {
 	// Public signals
-	NftCommitment  frontend.Variable           `gnark:",public"`
-	MerkleRoots    [nInputs]frontend.Variable  `gnark:",public"`
-	Nullifiers     [nInputs]frontend.Variable  `gnark:",public"`
-	TreeNumbers    [nInputs]frontend.Variable  `gnark:",public"`
+	NftCommitment    frontend.Variable           `gnark:",public"`
+	MerkleRoots      [nInputs]frontend.Variable  `gnark:",public"`
+	Nullifiers       [nInputs]frontend.Variable  `gnark:",public"`
+	TreeNumbers      [nInputs]frontend.Variable  `gnark:",public"`
 	CommitmentsOut   [mOutputs]frontend.Variable `gnark:",public"`
-	RevertCommitment frontend.Variable          `gnark:",public"`
+	RevertCommitment frontend.Variable           `gnark:",public"`
 
 	// Private signals
 	PrivateKeys           [nInputs]frontend.Variable
@@ -75,6 +75,7 @@ func (circuit *EnygmaJoinSplitCircuit) Define(api frontend.API) error {
 		circuit.NftCommitment,
 		circuit.MerkleRoots[:],
 		circuit.Nullifiers[:],
+		circuit.TreeNumbers[:],
 		circuit.CommitmentsOut[:],
 		circuit.PrivateKeys[:],
 		circuit.SaltsIn[:],

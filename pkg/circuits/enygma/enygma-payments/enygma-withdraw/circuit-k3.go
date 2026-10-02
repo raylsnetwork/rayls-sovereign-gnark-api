@@ -23,11 +23,10 @@ type WithdrawEnygmak3Circuit struct {
 	BlockNumber               frontend.Variable     `gnark:",public"`
 	AnonymitySet              [k3]frontend.Variable `gnark:",public"`
 	MessageTags               [k3]frontend.Variable `gnark:",public"`
-	Hashes                    [10]frontend.Variable `gnark:",public"`
-	SkDeposits                [10]frontend.Variable
-	VPerDeposit               [10]frontend.Variable
+	PaymentCommitment         frontend.Variable     `gnark:",public"`
+	PaymentSecretKey          frontend.Variable
+	PaymentSalt               frontend.Variable
 	Address                   frontend.Variable
-	SaltsIn                   [10]frontend.Variable
 }
 
 type WithdrawEnygmak3Request struct {
@@ -47,11 +46,10 @@ type WithdrawEnygmak3Request struct {
 	BlockNumber               string        `json:"block_number" binding:"required"`
 	AnonymitySet              [k3]string    `json:"anonymity_set" binding:"required,len=3"`
 	MessageTags               [k3]string    `json:"message_tags" binding:"required,len=3"`
-	Hashes                    [10]string    `json:"hashes" binding:"required"`
-	SkDeposits                [10]string    `json:"sk_deposits" binding:"required"`
-	VPerDeposit               [10]string    `json:"v_per_deposit" binding:"required"`
+	PaymentCommitment         string        `json:"payment_commitment" binding:"required"`
+	PaymentSecretKey          string        `json:"payment_secret_key" binding:"required"`
+	PaymentSalt               string        `json:"payment_salt" binding:"required"`
 	Address                   string        `json:"address" binding:"required"`
-	SaltsIn                   [10]string    `json:"saltsIn" binding:"required"`
 }
 
 func (circuit *WithdrawEnygmak3Circuit) Define(api frontend.API) error {
@@ -72,11 +70,10 @@ func (circuit *WithdrawEnygmak3Circuit) Define(api frontend.API) error {
 		circuit.BlockNumber,
 		circuit.AnonymitySet[:],
 		circuit.MessageTags[:],
-		circuit.Hashes[:],
-		circuit.SkDeposits[:],
-		circuit.VPerDeposit[:],
-		circuit.Address,
-		circuit.SaltsIn[:])
+		circuit.PaymentCommitment,
+		circuit.PaymentSecretKey,
+		circuit.PaymentSalt,
+		circuit.Address)
 }
 
 func convertArrayToSlice3(arr [3][2]frontend.Variable) [][2]frontend.Variable {

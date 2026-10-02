@@ -1,0 +1,22 @@
+name: gnark-safety
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write # upload SARIF to code scanning
+
+jobs:
+  scan:
+    name: Circuit soundness scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: auditinfra-io/gnark-safety@aac7ae26cd2e6046679571d6469801a262f5942a # v0.1.1
+        with:
+          path: ./...
+          field: bn254
+          # GNARK_UNSAFE_SETUP (low) stays reported until keys come from an MPC ceremony.
+          fail-on: medium

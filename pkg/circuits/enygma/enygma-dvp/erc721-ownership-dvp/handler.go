@@ -1,8 +1,8 @@
 package erc721_ownership
 
 import (
-	primitives "github.com/raylsnetwork/rayls-sovereign-gnark-api/primitives"
 	"fmt"
+	primitives "github.com/raylsnetwork/rayls-sovereign-gnark-api/primitives"
 	"math/big"
 	"net/http"
 	"os"

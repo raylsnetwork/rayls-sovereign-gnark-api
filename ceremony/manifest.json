@@ -1,0 +1,271 @@
+{
+  "version": 2,
+  "curve": "bn254",
+  "gnark": "v0.14.0",
+  "circuits": [
+    {
+      "name": "Enygmak2",
+      "verifier": "EnygmaVerifierk2",
+      "constraints": 43906,
+      "power": 16,
+      "r1cs_sha256": "dfdc65d2c065fdd3b0125a1bf18a2390381c48d91105f3f6376c153bef91d554"
+    },
+    {
+      "name": "Enygmak3",
+      "verifier": "EnygmaVerifierk3",
+      "constraints": 55242,
+      "power": 16,
+      "r1cs_sha256": "2145f00bcb68e39e7067bc6af71252c69def0a305b828b76bc685e952d2d9638"
+    },
+    {
+      "name": "Enygmak4",
+      "verifier": "EnygmaVerifierk4",
+      "constraints": 66578,
+      "power": 17,
+      "r1cs_sha256": "78be1a6cf1b94da2cf296cd0fb91ffef6da06c22b0eb9a0bafbdb12480de81b6"
+    },
+    {
+      "name": "Enygmak5",
+      "verifier": "EnygmaVerifierk5",
+      "constraints": 77914,
+      "power": 17,
+      "r1cs_sha256": "20452a40a5cec77366f465ce067b0c4db2c2a0055daf6779d91150352d4cf0df"
+    },
+    {
+      "name": "Enygmak6",
+      "verifier": "EnygmaVerifierk6",
+      "constraints": 89250,
+      "power": 17,
+      "r1cs_sha256": "9cf5b5459e2c09edd666f9fadd8fdec9ec46256224ddd1cedc3f5f9658f9a54b"
+    },
+    {
+      "name": "Withdrawk2",
+      "verifier": "EnygmaWithdrawFromDvpVerifierk2",
+      "constraints": 46467,
+      "power": 16,
+      "r1cs_sha256": "7842269e3684e993e7672377c946cd45b1db4112cd8aa59eac04f2c21622f1c8"
+    },
+    {
+      "name": "Withdrawk3",
+      "verifier": "EnygmaWithdrawFromDvpVerifierk3",
+      "constraints": 57791,
+      "power": 16,
+      "r1cs_sha256": "c19f21b3563d8cd0c0c0335471341678d8175aa54cc4ea136b0421c405255b97"
+    },
+    {
+      "name": "Withdrawk4",
+      "verifier": "EnygmaWithdrawFromDvpVerifierk4",
+      "constraints": 69115,
+      "power": 17,
+      "r1cs_sha256": "dc9b779e03bda06329b92b6f6fe3011df7cc410803e634949ccb686c0efa608f"
+    },
+    {
+      "name": "Withdrawk5",
+      "verifier": "EnygmaWithdrawFromDvpVerifierk5",
+      "constraints": 80439,
+      "power": 17,
+      "r1cs_sha256": "3a2a10105d51485f1b35a6d7e34034e560bb3f72e2ff6af1b4a32ff3731532d5"
+    },
+    {
+      "name": "Withdrawk6",
+      "verifier": "EnygmaWithdrawFromDvpVerifierk6",
+      "constraints": 91763,
+      "power": 17,
+      "r1cs_sha256": "b4fe359beea1815613602928efafee236a69996fd82b2c2bf578733047d50a0b"
+    },
+    {
+      "name": "Depositk2",
+      "verifier": "EnygmaDepositToDvpVerifierk2",
+      "constraints": 47879,
+      "power": 16,
+      "r1cs_sha256": "724ea0edc2725bab6ceb75f7b1d02afc7631e4112dc2bb29cf38765bb668fb45"
+    },
+    {
+      "name": "Depositk3",
+      "verifier": "EnygmaDepositToDvpVerifierk3",
+      "constraints": 59203,
+      "power": 16,
+      "r1cs_sha256": "efd330e2c3f61eb601c5464db5c2263514ba2dd6c938f15835faab69769d843d"
+    },
+    {
+      "name": "Depositk4",
+      "verifier": "EnygmaDepositToDvpVerifierk4",
+      "constraints": 70527,
+      "power": 17,
+      "r1cs_sha256": "11047b945ae2a4648e97291be83a977684bcb3c41289a649a5005cb5941986ac"
+    },
+    {
+      "name": "Depositk5",
+      "verifier": "EnygmaDepositToDvpVerifierk5",
+      "constraints": 81851,
+      "power": 17,
+      "r1cs_sha256": "7d224f9519c6e60afe366a2c5a6207606b9f1cd7371312f1807f057152994058"
+    },
+    {
+      "name": "Depositk6",
+      "verifier": "EnygmaDepositToDvpVerifierk6",
+      "constraints": 93175,
+      "power": 17,
+      "r1cs_sha256": "7b01d270fed176ee29b43c0a095d81cf8aec8d98d1d2f448c53a56db37256eed"
+    },
+    {
+      "name": "EnygmaJoinSplit",
+      "verifier": "EnygmaJoinSplitVerifier",
+      "constraints": 65980,
+      "power": 17,
+      "r1cs_sha256": "b49887490e3b4842b3115ceb3eb07504336001049d894dcb8d1a69044d31a051"
+    },
+    {
+      "name": "Erc721Ownership",
+      "verifier": "Erc721OwnershipVerifier",
+      "constraints": 6693,
+      "power": 13,
+      "r1cs_sha256": "96cb9f2a3bc61cfa889b5361611faf5c5699a3a2ba70368d17daeeb2999ce950"
+    },
+    {
+      "name": "Erc1155JoinSplit",
+      "verifier": "Erc1155JoinSplitVerifier",
+      "constraints": 69100,
+      "power": 17,
+      "r1cs_sha256": "6ccb220c0276b64a947bb8b415a516da488e478f5f88067c6ec1cffe6bcaf3d6"
+    }
+  ],
+  "phase1": {
+    "source": "https://pse-trusted-setup-ppot.s3.eu-central-1.amazonaws.com/pot28_0080/ppot_0080_17.ptau",
+    "ptau_sha256": "f807e065fde53f72f4bf4d57140fab85b26daa6cc95bdfec7cce93622b3a367c",
+    "ptau_blake2b": "3010cec42bdd1583bb4477dfa1b11853a67e8611feaa39cd7b3311a353b3e1d8b3f318509d75208078dc6887500b61f3f46bc72c61abbb624bec3bad5ef16012",
+    "power": 17,
+    "srs": [
+      {
+        "power": 17,
+        "path": "phase1/srs-17.bin",
+        "sha256": "6ee8bc22d726d3099d629bd9da29459e4d25eae7bc35e4fd415b2defafbbec15"
+      },
+      {
+        "power": 16,
+        "path": "phase1/srs-16.bin",
+        "sha256": "a731468cee361d4adcb5761961f0de751395467a599b3e3a357b75075e92b2c6"
+      },
+      {
+        "power": 13,
+        "path": "phase1/srs-13.bin",
+        "sha256": "8855dea05702cc64fdc1e0b0ceda55a1f477a865c693dc52ad1abd100002442c"
+      }
+    ]
+  },
+  "phase2": {
+    "contributions": [
+      {
+        "index": 1,
+        "name": "pedro-rayls",
+        "path": "phase2/0001-pedro-rayls",
+        "sha256": "892b12eb0dc9bbd7661a2f743104f4459b674efa26767d7062a7e5da35c4cfd7",
+        "files": {
+          "Depositk2": "3af31ab17085162338951b283ceb544dcb66372dcb90d6e3109cb09959e46875",
+          "Depositk3": "8904827a56795372f14c9451ab5be3189f9b139d6c55e1256f879df9354598d3",
+          "Depositk4": "a9809014c75438ef3344e53a956363087093105ed19c987218d33a277e25f1c0",
+          "Depositk5": "3654f9c63d1c0d0aad132e57fc35a221e338ee2ff7a348153585ae496b692312",
+          "Depositk6": "d7bd669164ded153497a931f4bd58cf6124772fdd2aa421f88ea5dc23901fc87",
+          "EnygmaJoinSplit": "3bf4d425f3bcc6081efe4ac0da72eea38001d1ba2057a83a2f4c71b9224f4f26",
+          "Enygmak2": "34e6d082a66c620696c9c7e3bd5d8bcc965606108f86b16d13588c09a03100f7",
+          "Enygmak3": "154eeaad59971ebead7894d13edf525cd085beb7115b4d71967907211dd7d36b",
+          "Enygmak4": "6502b69942606c8bb52755c47d15d7b072e38adbb75804c41523ca321226e687",
+          "Enygmak5": "4b5168d669247397cfa4d501356661543b42fb1a6197a4fed2254f8f6a4b3dbb",
+          "Enygmak6": "02929be387cf22e86048993c731c46f80f51e4439df085ab126f8e3aa5347eaa",
+          "Erc1155JoinSplit": "d58eb197989fba7a6e8206fdf8ab01ab3025d30e88d02cc48953165d4b575897",
+          "Erc721Ownership": "b85b0673ba396f04e331f0f4e9c55cdd83e9b3533bb4324741389c45974cbf3c",
+          "Withdrawk2": "bf68837a8b9f2fa944959e4f64a2ccfbd4719727406407bbd132a0bdbbf3f78d",
+          "Withdrawk3": "53b0e9593da28051bedcd88733aae9f5b916119239580246583b97fd108e5ab1",
+          "Withdrawk4": "aac2aebca93e8e1825d127199d78906b5db882f427671c9afae5e7997905bf9c",
+          "Withdrawk5": "47e08af986490419695d014d9208a382ebcd0f7570a4f5807925c88f2efc8276",
+          "Withdrawk6": "55779a8ac260cd21abbc4e157e7c865d4cf2b32fe661df074e2753ad8c0af73e"
+        },
+        "beacon": "drand quicknet round 32690632"
+      }
+    ],
+    "releases": [
+      {
+        "version": 1,
+        "contributions": 1,
+        "beacon": {
+          "source": "drand quicknet round 32690632",
+          "value": "cecdecf65f217adb93903b518ab851a4d1eff85d62f2c38b8b91b60a1587c8fa"
+        },
+        "outputs": {
+          "EnygmaDepositToDvpVerifierk2_raw.sol": "e8c922ce30111b0dbc6d7d41f7710fe30fea686cbc74591016ad0523f344f17c",
+          "EnygmaDepositToDvpVerifierk3_raw.sol": "05f6887423076d0fb42a9e33a6544359184a8353e0d6fed260053b471f640132",
+          "EnygmaDepositToDvpVerifierk4_raw.sol": "373f1b9137bcd8d2cc2dc52e7a51ef36976728dd591cb4e60be6b3965b51ca5d",
+          "EnygmaDepositToDvpVerifierk5_raw.sol": "b067539d66495535302179689f2eb9b3237d9ef3195cfbc7a21e5d1d7c9f1f78",
+          "EnygmaDepositToDvpVerifierk6_raw.sol": "728b38577800945af7ce9991a43b156275a3a0c07f9d4b6293c593208ae8f0ba",
+          "EnygmaJoinSplitVerifier_raw.sol": "c74c8d16f7286255cd4d2f02e640b8dc5ddcb14d7b4531694515134a8f1e6c7c",
+          "EnygmaVerifierk2_raw.sol": "21c76ca4d7066416e58a87ecfe4f5bb151905943c82c1f9aaa842f7a233f1c0c",
+          "EnygmaVerifierk3_raw.sol": "a0344b92d04676eec875a7b9c66785217e4bcbb995489855d95a9ebbdd7b237f",
+          "EnygmaVerifierk4_raw.sol": "1b4e97ee45c0f8da3d01f1a6158aec7f70e43e4441e65078446ea79fc876e966",
+          "EnygmaVerifierk5_raw.sol": "8c3e3b27909c0d876baaee00149bbb97e4951675d5d7fb4925a2ae2f17412365",
+          "EnygmaVerifierk6_raw.sol": "52bb79bf6ff4abf9c96298da2bbe7be339a46dc1fbad1d52fda50c73e6f7213e",
+          "EnygmaWithdrawFromDvpVerifierk2_raw.sol": "6a86e6b0f725c2672ded617568f25f6e09fc5cdb330cdecf81df05667acfa95c",
+          "EnygmaWithdrawFromDvpVerifierk3_raw.sol": "d8fc781bd743851d6f86802a73e95b389e2ea4fbbba73a5395408b506bb78a56",
+          "EnygmaWithdrawFromDvpVerifierk4_raw.sol": "e6cfa87460176b73cfaacf6d1b4b39c6fc4c7d70140659acbd54c215cf995e7b",
+          "EnygmaWithdrawFromDvpVerifierk5_raw.sol": "ac4b8113a296db3807c458d53a26c0db596dd5ee533f25d9500e0e3537ec76a0",
+          "EnygmaWithdrawFromDvpVerifierk6_raw.sol": "5b6b6bff72c6d51f29250d7a14897fdaa9e471d225faf5356cec34686e04e354",
+          "Erc1155JoinSplitVerifier_raw.sol": "1824f253f51fd1549fb49ab2c687a5297167e4616c3386f02539383c9566506d",
+          "Erc721OwnershipVerifier_raw.sol": "a69dda01bc1e4a35d7e315829ea67fe28d80eddbf96f2cfbb08b438d9e2fea41",
+          "circuits/Depositk2.r1cs": "724ea0edc2725bab6ceb75f7b1d02afc7631e4112dc2bb29cf38765bb668fb45",
+          "circuits/Depositk3.r1cs": "efd330e2c3f61eb601c5464db5c2263514ba2dd6c938f15835faab69769d843d",
+          "circuits/Depositk4.r1cs": "11047b945ae2a4648e97291be83a977684bcb3c41289a649a5005cb5941986ac",
+          "circuits/Depositk5.r1cs": "7d224f9519c6e60afe366a2c5a6207606b9f1cd7371312f1807f057152994058",
+          "circuits/Depositk6.r1cs": "7b01d270fed176ee29b43c0a095d81cf8aec8d98d1d2f448c53a56db37256eed",
+          "circuits/EnygmaJoinSplit.r1cs": "b49887490e3b4842b3115ceb3eb07504336001049d894dcb8d1a69044d31a051",
+          "circuits/Enygmak2.r1cs": "dfdc65d2c065fdd3b0125a1bf18a2390381c48d91105f3f6376c153bef91d554",
+          "circuits/Enygmak3.r1cs": "2145f00bcb68e39e7067bc6af71252c69def0a305b828b76bc685e952d2d9638",
+          "circuits/Enygmak4.r1cs": "78be1a6cf1b94da2cf296cd0fb91ffef6da06c22b0eb9a0bafbdb12480de81b6",
+          "circuits/Enygmak5.r1cs": "20452a40a5cec77366f465ce067b0c4db2c2a0055daf6779d91150352d4cf0df",
+          "circuits/Enygmak6.r1cs": "9cf5b5459e2c09edd666f9fadd8fdec9ec46256224ddd1cedc3f5f9658f9a54b",
+          "circuits/Erc1155JoinSplit.r1cs": "6ccb220c0276b64a947bb8b415a516da488e478f5f88067c6ec1cffe6bcaf3d6",
+          "circuits/Erc721Ownership.r1cs": "96cb9f2a3bc61cfa889b5361611faf5c5699a3a2ba70368d17daeeb2999ce950",
+          "circuits/Withdrawk2.r1cs": "7842269e3684e993e7672377c946cd45b1db4112cd8aa59eac04f2c21622f1c8",
+          "circuits/Withdrawk3.r1cs": "c19f21b3563d8cd0c0c0335471341678d8175aa54cc4ea136b0421c405255b97",
+          "circuits/Withdrawk4.r1cs": "dc9b779e03bda06329b92b6f6fe3011df7cc410803e634949ccb686c0efa608f",
+          "circuits/Withdrawk5.r1cs": "3a2a10105d51485f1b35a6d7e34034e560bb3f72e2ff6af1b4a32ff3731532d5",
+          "circuits/Withdrawk6.r1cs": "b4fe359beea1815613602928efafee236a69996fd82b2c2bf578733047d50a0b",
+          "keys/Depositk2Pk.key": "309fb131103a91381742eccf9d2c3f688711c57b9bcdb8bd73d51d52610463e4",
+          "keys/Depositk2Vk.key": "a4a0d5042244cf7b08566b98b0e6061ca87365a073863f2a927c94408930420a",
+          "keys/Depositk3Pk.key": "c598c6120e13e29c0e930b617b48664710e5f2a4233b833c0ac4dbed495836f3",
+          "keys/Depositk3Vk.key": "9fac96dac28005a302780031d11a2bb0f8698cd01f920ccef85884114b65d189",
+          "keys/Depositk4Pk.key": "09a18ed5381dd62f7d7555afdb58e27c315de55b71864eef76bc120a08094510",
+          "keys/Depositk4Vk.key": "21247f64639b2725622ef7c6fec9852c03a7c9048b0988245f6e3e3ea28b8d0f",
+          "keys/Depositk5Pk.key": "9efd97855715eb96d26264766df561c279456047ada4d5a5d7d7fcf3bdc8d0b4",
+          "keys/Depositk5Vk.key": "9836981767216629c67d4e2ed89ae590b73ba17d49a072a62d961d24f1da1ff2",
+          "keys/Depositk6Pk.key": "43f8cb8ab213c9adbd10b98d99132c4c6e81b9fc906aa6ba1b6e4097568e1331",
+          "keys/Depositk6Vk.key": "554cd5ebd0089f8ae88ca2225e1aa757647ad33d4634d73e9a955598cacf7424",
+          "keys/EnygmaJoinSplitPk.key": "8f55c3fac46f139485dc53039e1bb0ecba1ff65072f028caa0521ef47455d716",
+          "keys/EnygmaJoinSplitVk.key": "1b3d125f1aa2ae843828e440e69d32d98df37d8668af56bffd30db64c5437b2f",
+          "keys/Enygmak2Pk.key": "f7f7a5460beea91d2b2c0a0569eecc2c588ee2f8c9f3825016bb6aa5ad13d3ba",
+          "keys/Enygmak2Vk.key": "985a8d679d78873e3cf75c2ddf728d349aa4105acbe031825946c8d9f1258949",
+          "keys/Enygmak3Pk.key": "33f7ccc59f5b8da7602b8bb676816c3822b1acccee130693099fd1aa685205b1",
+          "keys/Enygmak3Vk.key": "57e6d85e3cae2ba7401d6c787cdf7658f0fdc21efbcbd7786d882b388993bbf5",
+          "keys/Enygmak4Pk.key": "075fd39edeb0be6cf6def0ea0bce87e09ec02763ad2b598e9d25feec0889b32c",
+          "keys/Enygmak4Vk.key": "dfa3c7ebf88b15a6f1663ec13275f9e6197a938e892e1f9b2261727bff28731a",
+          "keys/Enygmak5Pk.key": "fde5bcc17a1077a9bed29077a723995de9dbc1769a747d3015e5cdb9ab3ed78c",
+          "keys/Enygmak5Vk.key": "c925f6d8f0a34f5626bf252d72b42588b82de90a51b1875240f9cd3ca7e30a65",
+          "keys/Enygmak6Pk.key": "02206b6aadce3865eb8919759e51147be544d8807d2b53be7ff18fe9c8cdfeb5",
+          "keys/Enygmak6Vk.key": "84f5ee30230fd4b01e56b5508326410ee0c61309ecebe374db0698a867da70fe",
+          "keys/Erc1155JoinSplitPk.key": "01fe16878eebf0a441da6a95b9b8eb658a905618dacdd65ded84e91b56a4d910",
+          "keys/Erc1155JoinSplitVk.key": "ed7daaf669111a8a273a46076c64ab49735d9c3d8e3f06b68004dcbeadad544d",
+          "keys/Erc721OwnershipPk.key": "ea412a5b50817de220eb985dafa9a26cc2d7ce510afe0d3e1192dbfa9c6a0a30",
+          "keys/Erc721OwnershipVk.key": "145cf8680c050fb17fb6671b3118ca6af18dbe4c9c3f28fbab1081df2d4ec734",
+          "keys/Withdrawk2Pk.key": "f627476cf0983baa08c08813f3922e5e2e2f6a8b1afd88a35650ea2c0e17c44a",
+          "keys/Withdrawk2Vk.key": "309edf5262624cce98992dd480ff59fbb34123ec99c6cb4d1f2f5560c377db72",
+          "keys/Withdrawk3Pk.key": "1ae8e1e391f56629f737d22e8016f7322725db4769e55f63974103588e63e1a4",
+          "keys/Withdrawk3Vk.key": "6ca9a1c691a73cc079edcefd8812a38cc0c9bb5256d3748dba7433607d829acf",
+          "keys/Withdrawk4Pk.key": "64a3db03f341ba70eb013cda96d617dd63568f4f12516cc8a7c98458d0afc514",
+          "keys/Withdrawk4Vk.key": "79e49dae6ee9238973e68dacf0ecec3e313af2bbc65ea0a1f7dd6f5d278e2968",
+          "keys/Withdrawk5Pk.key": "7a2e4666eb0a57421d81dcae6725b447156f7c6105a85c9328d949c6ab4c024e",
+          "keys/Withdrawk5Vk.key": "de098c22959d5d7f3a81b8b2214418289a74fbdc591831a448966f01d3fe2010",
+          "keys/Withdrawk6Pk.key": "3146e304e88890e5929117195a81876eeb65c7aa36f29123ce6593451a0051f7",
+          "keys/Withdrawk6Vk.key": "909a93f1cd91f2cc22c84474d22402cf110d0745d0521d2b83636b7574c3877d"
+        }
+      }
+    ]
+  }
+}

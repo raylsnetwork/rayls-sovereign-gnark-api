@@ -1,8 +1,8 @@
 package withdraw
 
 import (
-	primitives "github.com/raylsnetwork/rayls-sovereign-gnark-api/primitives"
 	"fmt"
+	primitives "github.com/raylsnetwork/rayls-sovereign-gnark-api/primitives"
 	"math/big"
 	"net/http"
 	"os"
@@ -113,6 +113,18 @@ func validateInputsGeneric(anonymity_set []string, senderID string, previousV st
 	return nil
 }
 
+// validatePaymentCommitment checks that payment_commitment opens to the withdrawn
+// amount under the payment key, as the circuit requires, so a mismatch is
+// reported clearly instead of as an unsatisfied constraint.
+func validatePaymentCommitment(commitment, secretKey, salt, amount, address string) error {
+	pk := primitives.DerivePublicKeyBN254(secretKey)
+	expected := primitives.ComputeCommitmentV2ERC20BN254(pk, salt, amount, address)
+	if expected != commitment {
+		return fmt.Errorf("payment_commitment %s does not match the commitment to sender_tx_value %s under the payment key (expected %s)", commitment, amount, expected)
+	}
+	return nil
+}
+
 // Helper function to convert 2D array to 2D slice
 func convertCommitArray(arr [][2]string) [][]string {
 	result := make([][]string, len(arr))
@@ -124,23 +136,38 @@ func convertCommitArray(arr [][2]string) [][]string {
 
 // Validation functions
 func validateInputsK2(request *WithdrawEnygmak2Request) error {
-	return validateInputsGeneric(request.AnonymitySet[:], request.SenderID, request.PreviousSenderBalance, request.PreviousSenderRandomValue, convertCommitArray(request.PreviousCommits[:]))
+	if err := validateInputsGeneric(request.AnonymitySet[:], request.SenderID, request.PreviousSenderBalance, request.PreviousSenderRandomValue, convertCommitArray(request.PreviousCommits[:])); err != nil {
+		return err
+	}
+	return validatePaymentCommitment(request.PaymentCommitment, request.PaymentSecretKey, request.PaymentSalt, request.SenderTxValue, request.Address)
 }
 
 func validateInputsK3(request *WithdrawEnygmak3Request) error {
-	return validateInputsGeneric(request.AnonymitySet[:], request.SenderID, request.PreviousSenderBalance, request.PreviousSenderRandomValue, convertCommitArray(request.PreviousCommits[:]))
+	if err := validateInputsGeneric(request.AnonymitySet[:], request.SenderID, request.PreviousSenderBalance, request.PreviousSenderRandomValue, convertCommitArray(request.PreviousCommits[:])); err != nil {
+		return err
+	}
+	return validatePaymentCommitment(request.PaymentCommitment, request.PaymentSecretKey, request.PaymentSalt, request.SenderTxValue, request.Address)
 }
 
 func validateInputsK4(request *WithdrawEnygmak4Request) error {
-	return validateInputsGeneric(request.AnonymitySet[:], request.SenderID, request.PreviousSenderBalance, request.PreviousSenderRandomValue, convertCommitArray(request.PreviousCommits[:]))
+	if err := validateInputsGeneric(request.AnonymitySet[:], request.SenderID, request.PreviousSenderBalance, request.PreviousSenderRandomValue, convertCommitArray(request.PreviousCommits[:])); err != nil {
+		return err
+	}
+	return validatePaymentCommitment(request.PaymentCommitment, request.PaymentSecretKey, request.PaymentSalt, request.SenderTxValue, request.Address)
 }
 
 func validateInputsK5(request *WithdrawEnygmak5Request) error {
-	return validateInputsGeneric(request.AnonymitySet[:], request.SenderID, request.PreviousSenderBalance, request.PreviousSenderRandomValue, convertCommitArray(request.PreviousCommits[:]))
+	if err := validateInputsGeneric(request.AnonymitySet[:], request.SenderID, request.PreviousSenderBalance, request.PreviousSenderRandomValue, convertCommitArray(request.PreviousCommits[:])); err != nil {
+		return err
+	}
+	return validatePaymentCommitment(request.PaymentCommitment, request.PaymentSecretKey, request.PaymentSalt, request.SenderTxValue, request.Address)
 }
 
 func validateInputsK6(request *WithdrawEnygmak6Request) error {
-	return validateInputsGeneric(request.AnonymitySet[:], request.SenderID, request.PreviousSenderBalance, request.PreviousSenderRandomValue, convertCommitArray(request.PreviousCommits[:]))
+	if err := validateInputsGeneric(request.AnonymitySet[:], request.SenderID, request.PreviousSenderBalance, request.PreviousSenderRandomValue, convertCommitArray(request.PreviousCommits[:])); err != nil {
+		return err
+	}
+	return validatePaymentCommitment(request.PaymentCommitment, request.PaymentSecretKey, request.PaymentSalt, request.SenderTxValue, request.Address)
 }
 
 type PedersenPoint struct {
@@ -681,12 +708,9 @@ func setWitness2Optimized(witness *WithdrawEnygmak2Circuit, request *WithdrawEny
 		witness.AnonymitySet[i] = parseBigIntOptimized(request.AnonymitySet[i])
 		witness.MessageTags[i] = parseBigIntOptimized(request.MessageTags[i])
 	}
-	for i := 0; i < 10; i++ {
-		witness.Hashes[i] = parseBigIntOptimized(request.Hashes[i])
-		witness.SkDeposits[i] = parseBigIntOptimized(request.SkDeposits[i])
-		witness.VPerDeposit[i] = parseBigIntOptimized(request.VPerDeposit[i])
-		witness.SaltsIn[i] = parseBigIntOptimized(request.SaltsIn[i])
-	}
+	witness.PaymentCommitment = parseBigIntOptimized(request.PaymentCommitment)
+	witness.PaymentSecretKey = parseBigIntOptimized(request.PaymentSecretKey)
+	witness.PaymentSalt = parseBigIntOptimized(request.PaymentSalt)
 	witness.Address = parseBigIntOptimized(request.Address)
 }
 
@@ -712,12 +736,9 @@ func setWitness3Optimized(witness *WithdrawEnygmak3Circuit, request *WithdrawEny
 		witness.AnonymitySet[i] = parseBigIntOptimized(request.AnonymitySet[i])
 		witness.MessageTags[i] = parseBigIntOptimized(request.MessageTags[i])
 	}
-	for i := 0; i < 10; i++ {
-		witness.Hashes[i] = parseBigIntOptimized(request.Hashes[i])
-		witness.SkDeposits[i] = parseBigIntOptimized(request.SkDeposits[i])
-		witness.VPerDeposit[i] = parseBigIntOptimized(request.VPerDeposit[i])
-		witness.SaltsIn[i] = parseBigIntOptimized(request.SaltsIn[i])
-	}
+	witness.PaymentCommitment = parseBigIntOptimized(request.PaymentCommitment)
+	witness.PaymentSecretKey = parseBigIntOptimized(request.PaymentSecretKey)
+	witness.PaymentSalt = parseBigIntOptimized(request.PaymentSalt)
 	witness.Address = parseBigIntOptimized(request.Address)
 }
 
@@ -743,12 +764,9 @@ func setWitness4Optimized(witness *WithdrawEnygmak4Circuit, request *WithdrawEny
 		witness.AnonymitySet[i] = parseBigIntOptimized(request.AnonymitySet[i])
 		witness.MessageTags[i] = parseBigIntOptimized(request.MessageTags[i])
 	}
-	for i := 0; i < 10; i++ {
-		witness.Hashes[i] = parseBigIntOptimized(request.Hashes[i])
-		witness.SkDeposits[i] = parseBigIntOptimized(request.SkDeposits[i])
-		witness.VPerDeposit[i] = parseBigIntOptimized(request.VPerDeposit[i])
-		witness.SaltsIn[i] = parseBigIntOptimized(request.SaltsIn[i])
-	}
+	witness.PaymentCommitment = parseBigIntOptimized(request.PaymentCommitment)
+	witness.PaymentSecretKey = parseBigIntOptimized(request.PaymentSecretKey)
+	witness.PaymentSalt = parseBigIntOptimized(request.PaymentSalt)
 	witness.Address = parseBigIntOptimized(request.Address)
 }
 
@@ -774,12 +792,9 @@ func setWitness5Optimized(witness *WithdrawEnygmak5Circuit, request *WithdrawEny
 		witness.AnonymitySet[i] = parseBigIntOptimized(request.AnonymitySet[i])
 		witness.MessageTags[i] = parseBigIntOptimized(request.MessageTags[i])
 	}
-	for i := 0; i < 10; i++ {
-		witness.Hashes[i] = parseBigIntOptimized(request.Hashes[i])
-		witness.SkDeposits[i] = parseBigIntOptimized(request.SkDeposits[i])
-		witness.VPerDeposit[i] = parseBigIntOptimized(request.VPerDeposit[i])
-		witness.SaltsIn[i] = parseBigIntOptimized(request.SaltsIn[i])
-	}
+	witness.PaymentCommitment = parseBigIntOptimized(request.PaymentCommitment)
+	witness.PaymentSecretKey = parseBigIntOptimized(request.PaymentSecretKey)
+	witness.PaymentSalt = parseBigIntOptimized(request.PaymentSalt)
 	witness.Address = parseBigIntOptimized(request.Address)
 }
 
@@ -806,12 +821,9 @@ func setWitness6Optimized(witness *WithdrawEnygmak6Circuit, request *WithdrawEny
 		witness.MessageTags[i] = parseBigIntOptimized(request.MessageTags[i])
 	}
 
-	for i := 0; i < 10; i++ {
-		witness.Hashes[i] = parseBigIntOptimized(request.Hashes[i])
-		witness.SkDeposits[i] = parseBigIntOptimized(request.SkDeposits[i])
-		witness.VPerDeposit[i] = parseBigIntOptimized(request.VPerDeposit[i])
-		witness.SaltsIn[i] = parseBigIntOptimized(request.SaltsIn[i])
-	}
+	witness.PaymentCommitment = parseBigIntOptimized(request.PaymentCommitment)
+	witness.PaymentSecretKey = parseBigIntOptimized(request.PaymentSecretKey)
+	witness.PaymentSalt = parseBigIntOptimized(request.PaymentSalt)
 	witness.Address = parseBigIntOptimized(request.Address)
 }
 
@@ -864,10 +876,8 @@ func generatePublicSignal2Optimized(request *WithdrawEnygmak2Request) []string {
 		publicSignal = append(publicSignal, request.MessageTags[i])
 	}
 
-	// Hashes (10 values)
-	for i := 0; i < 10; i++ {
-		publicSignal = append(publicSignal, request.Hashes[i])
-	}
+	// PaymentCommitment (the DvP join-split payment output)
+	publicSignal = append(publicSignal, request.PaymentCommitment)
 
 	return publicSignal
 }
@@ -910,10 +920,8 @@ func generatePublicSignal3Optimized(request *WithdrawEnygmak3Request) []string {
 		publicSignal = append(publicSignal, request.MessageTags[i])
 	}
 
-	// Hashes (10 values)
-	for i := 0; i < 10; i++ {
-		publicSignal = append(publicSignal, request.Hashes[i])
-	}
+	// PaymentCommitment (the DvP join-split payment output)
+	publicSignal = append(publicSignal, request.PaymentCommitment)
 
 	return publicSignal
 }
@@ -956,10 +964,8 @@ func generatePublicSignal4Optimized(request *WithdrawEnygmak4Request) []string {
 		publicSignal = append(publicSignal, request.MessageTags[i])
 	}
 
-	// Hashes (10 values)
-	for i := 0; i < 10; i++ {
-		publicSignal = append(publicSignal, request.Hashes[i])
-	}
+	// PaymentCommitment (the DvP join-split payment output)
+	publicSignal = append(publicSignal, request.PaymentCommitment)
 
 	return publicSignal
 }
@@ -1002,10 +1008,8 @@ func generatePublicSignal5Optimized(request *WithdrawEnygmak5Request) []string {
 		publicSignal = append(publicSignal, request.MessageTags[i])
 	}
 
-	// Hashes (10 values)
-	for i := 0; i < 10; i++ {
-		publicSignal = append(publicSignal, request.Hashes[i])
-	}
+	// PaymentCommitment (the DvP join-split payment output)
+	publicSignal = append(publicSignal, request.PaymentCommitment)
 
 	return publicSignal
 }
@@ -1048,10 +1052,8 @@ func generatePublicSignal6Optimized(request *WithdrawEnygmak6Request) []string {
 		publicSignal = append(publicSignal, request.MessageTags[i])
 	}
 
-	// Hashes (10 values)
-	for i := 0; i < 10; i++ {
-		publicSignal = append(publicSignal, request.Hashes[i])
-	}
+	// PaymentCommitment (the DvP join-split payment output)
+	publicSignal = append(publicSignal, request.PaymentCommitment)
 
 	return publicSignal
 }

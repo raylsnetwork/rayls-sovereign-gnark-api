@@ -1,15 +1,13 @@
 package common
 
 import (
+	"fmt"
+
 	pos "github.com/raylsnetwork/rayls-sovereign-gnark-api/poseidon"
 	primitives "github.com/raylsnetwork/rayls-sovereign-gnark-api/primitives"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/math/cmp"
 )
-
-// JubJubPrimeSubGroup constant used across all circuits
-const JubJubPrimeSubGroupStr = "2736030358979909402780800718157159386076813972158567259200215660948447373041"
 
 // CheckSenderIdIsInK verifies that the sender ID is present in the k-anonymity set
 func CheckSenderIdIsInK(api frontend.API, k int, senderId frontend.Variable, anonymity_set []frontend.Variable) {
@@ -35,7 +33,7 @@ func CheckCurvePoints(api frontend.API, k int, previousCommit [][2]frontend.Vari
 }
 
 // CheckSecretKnowledge verifies the sender knows the secret via Poseidon(previousR, secret_key) == shared_secrets[senderIdx]
-func CheckSecretKnowledge(api frontend.API, k int, senderId frontend.Variable, anonymity_set []frontend.Variable, shared_secrets []frontend.Variable, previousR frontend.Variable, secret_key frontend.Variable) {
+func CheckSecretKnowledge(api frontend.API, k int, senderId frontend.Variable, anonymity_set []frontend.Variable, shared_secrets []frontend.Variable, previousR frontend.Variable, secret_key frontend.Variable) error {
 	// Select shared_secrets[senderIdx] where anonymity_set[senderIdx] == senderId
 	selectedSecret := frontend.Variable(0)
 	for i := 0; i < k; i++ {
@@ -44,25 +42,31 @@ func CheckSecretKnowledge(api frontend.API, k int, senderId frontend.Variable, a
 	}
 
 	secretSenderCalculated := pos.Poseidon(api, []frontend.Variable{previousR, secret_key})
-	secretInter, _ := api.NewHint(primitives.ModHintBabyJubJub, 2, secretSenderCalculated)
-	secretRemain := secretInter[0] // remainder
+	secretRemain, err := primitives.ModSubgroup(api, secretSenderCalculated)
+	if err != nil {
+		return fmt.Errorf("check secret knowledge: %w", err)
+	}
 
 	api.AssertIsEqual(secretRemain, selectedSecret)
+	return nil
 }
 
 // CheckHashArrayOfSecrets verifies that arrayHashSecret[i] = Poseidon(shared_secrets[i], shared_secrets[i])
-func CheckHashArrayOfSecrets(api frontend.API, k int, shared_secrets []frontend.Variable, arrayHashSecret []frontend.Variable) {
+func CheckHashArrayOfSecrets(api frontend.API, k int, shared_secrets []frontend.Variable, arrayHashSecret []frontend.Variable) error {
 	for i := 0; i < k; i++ {
 		calculatedHash := pos.Poseidon(api, []frontend.Variable{shared_secrets[i], shared_secrets[i]})
-		hashInter, _ := api.NewHint(primitives.ModHintBabyJubJub, 2, calculatedHash)
-		hashMod := hashInter[0] // remainder
+		hashMod, err := primitives.ModSubgroup(api, calculatedHash)
+		if err != nil {
+			return fmt.Errorf("check hash array of secrets: %w", err)
+		}
 
 		api.AssertIsEqual(hashMod, arrayHashSecret[i])
 	}
+	return nil
 }
 
 // CheckPublicKeyKnowledge verifies the sender knows the secret key that generates their public key
-func CheckPublicKeyKnowledge(api frontend.API, k int, senderId frontend.Variable, anonymity_set []frontend.Variable, publicKey []frontend.Variable, secret_key frontend.Variable) {
+func CheckPublicKeyKnowledge(api frontend.API, k int, senderId frontend.Variable, anonymity_set []frontend.Variable, publicKey []frontend.Variable, secret_key frontend.Variable) error {
 	selectedPK := frontend.Variable(0)
 
 	for i := 0; i < k; i++ {
@@ -70,11 +74,13 @@ func CheckPublicKeyKnowledge(api frontend.API, k int, senderId frontend.Variable
 		eq := api.IsZero(diff)
 		selectedPK = api.Add(selectedPK, api.Mul(eq, publicKey[i]))
 	}
-	pk := pos.Poseidon(api, []frontend.Variable{secret_key, secret_key}) // Pk = PoseidonHash (secret_key , secret_key)
-	pkInter, _ := api.NewHint(primitives.ModHintBabyJubJub, 2, pk)
-	pkMod := pkInter[0] // remainder
+	pkMod, err := primitives.PublicKey(api, secret_key) // Pk = PoseidonHash(secret_key, secret_key) mod l
+	if err != nil {
+		return fmt.Errorf("check public key knowledge: %w", err)
+	}
 
 	api.AssertIsEqual(selectedPK, pkMod)
+	return nil
 }
 
 // CheckPreviousCommitmentKnowledge verifies the sender knows the previous commitment
@@ -94,32 +100,33 @@ func CheckPreviousCommitmentKnowledge(api frontend.API, k int, senderId frontend
 	api.AssertIsEqual(selectedPreviousCommitmentY, computedPreviousCommitment.Y)
 }
 
-// CheckRangeProofWithPreviousV verifies previousV >= sender_tx_value and sender_tx_value >= 0
+// MaxAmountBits bounds every balance and amount. Pedersen values are only
+// defined mod the subgroup order l (~2^251), so without a bound well below l a
+// balance B can be opened as B + l, and a "negative" amount l - x passes as
+// positive. With k <= 6 values below 2^128, no sum can wrap mod l.
+const MaxAmountBits = 128
+
+// CheckRangeProofWithPreviousV verifies 0 <= sender_tx_value <= previousV < 2^MaxAmountBits
 func CheckRangeProofWithPreviousV(api frontend.API, previousV frontend.Variable, sender_tx_value frontend.Variable) {
-
-	previousVBits := api.ToBinary(previousV, 252)
-	vBits := api.ToBinary(sender_tx_value, 252)
-
-	previousVConstrained := api.FromBinary(previousVBits...)
-	vConstrained := api.FromBinary(vBits...)
-
-	// previousV >= sender_tx_value means previousV - sender_tx_value >= 0, which means Cmp(previousV, sender_tx_value) != -1
-	prevVGreaterEqualV := api.Cmp(previousVConstrained, vConstrained)
-	api.AssertIsEqual(api.IsZero(api.Add(prevVGreaterEqualV, frontend.Variable(1))), frontend.Variable(0))
-
-	// sender_tx_value >= 0 means Cmp(sender_tx_value, 0) != -1
-	vGreaterEqualZero := api.Cmp(vConstrained, frontend.Variable(0))
-	api.AssertIsEqual(api.IsZero(api.Add(vGreaterEqualZero, frontend.Variable(1))), frontend.Variable(0))
+	api.ToBinary(previousV, MaxAmountBits)
+	api.ToBinary(sender_tx_value, MaxAmountBits)
+	api.AssertIsLessOrEqual(sender_tx_value, previousV)
 }
 
-// CheckRangeProofVOnly verifies sender_tx_value >= 0 (for withdraw)
+// CheckRangeProofVOnly verifies 0 <= sender_tx_value < 2^MaxAmountBits (for withdraw)
 func CheckRangeProofVOnly(api frontend.API, sender_tx_value frontend.Variable) {
-	vBits := api.ToBinary(sender_tx_value, 252)
-	vConstrained := api.FromBinary(vBits...)
+	api.ToBinary(sender_tx_value, MaxAmountBits)
+}
 
-	// sender_tx_value >= 0 means Cmp(sender_tx_value, 0) != -1
-	vGreaterEqualZero := api.Cmp(vConstrained, frontend.Variable(0))
-	api.AssertIsEqual(api.IsZero(api.Add(vGreaterEqualZero, frontend.Variable(1))), frontend.Variable(0))
+// CheckReceiverAmounts verifies 0 <= txValue[i] < 2^MaxAmountBits for every
+// participant other than the sender, whose (possibly negated) value is checked
+// by the circuit itself. Without it, one member can be given l - x so that
+// another receives x more than the sender paid.
+func CheckReceiverAmounts(api frontend.API, k int, senderId frontend.Variable, anonymity_set []frontend.Variable, txValue []frontend.Variable) {
+	for i := 0; i < k; i++ {
+		isReceiver := api.Sub(1, api.IsZero(api.Sub(anonymity_set[i], senderId)))
+		api.ToBinary(api.Mul(isReceiver, txValue[i]), MaxAmountBits)
+	}
 }
 
 // CheckNullifierKnowledge verifies knowledge of nullifier = Poseidon(selectedPreImage, blockNumber)
@@ -150,21 +157,24 @@ func CheckTxCommitmentsWellFormed(api frontend.API, k int, txValue []frontend.Va
 // CheckMessageTags verifies message tags are well formed
 // For all participants: MessageTag[i] = Poseidon(HashTag, shared_secrets[i], blockNumber)
 // shared_secrets[] is the preselected sender row
-func CheckMessageTags(api frontend.API, k int, shared_secrets []frontend.Variable, blockNumber frontend.Variable, message_tags []frontend.Variable) {
+func CheckMessageTags(api frontend.API, k int, shared_secrets []frontend.Variable, blockNumber frontend.Variable, message_tags []frontend.Variable) error {
 	HashTag := pos.Poseidon(api, []frontend.Variable{12})
 	for i := 0; i < k; i++ {
 		calculatedMessageTag := pos.Poseidon(api, []frontend.Variable{HashTag, shared_secrets[i], blockNumber})
-		calculatedMessageTagInter, _ := api.NewHint(primitives.ModHintBabyJubJub, 2, calculatedMessageTag)
-		calculatedMessageTagMod := calculatedMessageTagInter[0]
+		calculatedMessageTagMod, err := primitives.ModSubgroup(api, calculatedMessageTag)
+		if err != nil {
+			return fmt.Errorf("check message tags: %w", err)
+		}
 
 		api.AssertIsEqual(message_tags[i], calculatedMessageTagMod)
 	}
+	return nil
 }
 
 // CheckRandomFactors verifies all random factors are well formed
 // shared_secrets[] is the preselected sender row
-func CheckRandomFactors(api frontend.API, k int, senderId frontend.Variable, anonymity_set []frontend.Variable, shared_secrets []frontend.Variable, blockNumber frontend.Variable, txRandom []frontend.Variable) {
-	JubJubPrimeSubGroup := frontend.Variable(JubJubPrimeSubGroupStr)
+func CheckRandomFactors(api frontend.API, k int, senderId frontend.Variable, anonymity_set []frontend.Variable, shared_secrets []frontend.Variable, blockNumber frontend.Variable, txRandom []frontend.Variable) error {
+	JubJubPrimeSubGroup := frontend.Variable(primitives.JubJubPrimeSubGroup)
 	calculatedRandomFactor := make([]frontend.Variable, k)
 	receiverHashesModP := make([]frontend.Variable, k)
 	sumOfReceiverHashes := frontend.Variable(0)
@@ -176,13 +186,10 @@ func CheckRandomFactors(api frontend.API, k int, senderId frontend.Variable, ano
 		RandomFactor := pos.Poseidon(api, []frontend.Variable{HashRandom, shared_secrets[i], blockNumber})
 
 		// Reduce RandomFactor modulo JubJubPrimeSubGroup
-		randomInter, _ := api.NewHint(primitives.ModHintBabyJubJub, 2, RandomFactor)
-		hashModP := randomInter[0]
-		q := randomInter[1]
-
-		api.AssertIsEqual(api.Add(api.Mul(q, JubJubPrimeSubGroup), hashModP), RandomFactor)
-		isValid := cmp.IsLess(api, hashModP, JubJubPrimeSubGroup)
-		api.AssertIsEqual(isValid, 1)
+		hashModP, err := primitives.ModSubgroup(api, RandomFactor)
+		if err != nil {
+			return fmt.Errorf("check random factors: %w", err)
+		}
 
 		receiverHashesModP[i] = hashModP
 
@@ -195,13 +202,10 @@ func CheckRandomFactors(api frontend.API, k int, senderId frontend.Variable, ano
 	}
 
 	// Reduce the sum modulo JubJubPrimeSubGroup
-	sumInter, _ := api.NewHint(primitives.ModHintBabyJubJub, 2, sumOfReceiverHashes)
-	senderRandomFactor := sumInter[0]
-	sumQ := sumInter[1]
-
-	api.AssertIsEqual(api.Add(api.Mul(sumQ, JubJubPrimeSubGroup), senderRandomFactor), sumOfReceiverHashes)
-	isSumValid := cmp.IsLess(api, senderRandomFactor, JubJubPrimeSubGroup)
-	api.AssertIsEqual(isSumValid, 1)
+	senderRandomFactor, err := primitives.ModSubgroup(api, sumOfReceiverHashes)
+	if err != nil {
+		return fmt.Errorf("check random factors: %w", err)
+	}
 
 	// Second pass: assign the correct random factors based on role
 	for i := 0; i < k; i++ {
@@ -216,4 +220,5 @@ func CheckRandomFactors(api frontend.API, k int, senderId frontend.Variable, ano
 	for i := 0; i < k; i++ {
 		api.AssertIsEqual(calculatedRandomFactor[i], txRandom[i])
 	}
+	return nil
 }
