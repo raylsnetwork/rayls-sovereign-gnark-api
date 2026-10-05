@@ -181,6 +181,33 @@
           "Withdrawk6": "55779a8ac260cd21abbc4e157e7c865d4cf2b32fe661df074e2753ad8c0af73e"
         },
         "beacon": "drand quicknet round 32690632"
+      },
+      {
+        "index": 2,
+        "name": "ar-lime",
+        "path": "phase2/0002-ar-lime",
+        "sha256": "a1f3e864352bace08df94cd084f503adecea769e213a3cda1a99c7d496b191a4",
+        "files": {
+          "Depositk2": "1608278f2513f3c0e9b6c48f3015f1616628979d0c7427fcf5d014c605da0315",
+          "Depositk3": "cf11fbf2862ec1730bdc8dac1289804297d1464c19794f9694ca9686ca1095e2",
+          "Depositk4": "7cef906e45bbbe67e0f472f81d7b93768dc2ef1fb7a0229075f61f93cb7d3634",
+          "Depositk5": "0387687836775f705d2d63f1f1a3ee8d34a510ebd54fafcdda0cff6877f4648f",
+          "Depositk6": "bceb62d2869bf569a566a3da72ba95db33f0afa90ac5d2b5a61bea8d9d8c80ca",
+          "EnygmaJoinSplit": "22851829a75bf4d53878df4bbe5be37beaf0b17930e54237a5e3818a0b76810a",
+          "Enygmak2": "8896e01c38ccdb491bd1b57baeb3075b320dce9ea050a51ab4c2233ce7be56b6",
+          "Enygmak3": "1937acd5a753be9dab10595f22500f2388254e162e61c9ef51b2a4bdf12b8f4a",
+          "Enygmak4": "93ec76b8c062b5b1b05ee162b69c5c757659dfeab1f3d94f906874b330b77299",
+          "Enygmak5": "09557082869d5781c297cfc87499c4aaa34d6047203db974efab99d04957fd45",
+          "Enygmak6": "11a471dd03c8771a8b66f9b3c14080ccf9a61b2221aa76bb701444264e1ca374",
+          "Erc1155JoinSplit": "8874e616b03f0ff4c6be586daa1393569bea7d722d8b10a2f1e7ee9bdcb52365",
+          "Erc721Ownership": "c9edf17bfe60a9a518b3461e9a73bc3d174a1d0daa9f213c0f8d071438027e6e",
+          "Withdrawk2": "2461ae48f7392002272fa0ec612fb227e47d3a3f8df58e7a739666a8f5745fdf",
+          "Withdrawk3": "9b0424bd483a0622f0dbaedc7575eaccb60eb0a2fcbbd447376349b74301c861",
+          "Withdrawk4": "4716ffb18d153804de57ac2001285ff8e097928a7d6e583161e363c098966aa3",
+          "Withdrawk5": "afb8a01e174fc6ca6d3a5437eaa881562e833477f24382f0eb7858eff3f91983",
+          "Withdrawk6": "998ae50e00a164948221f60229e188cf52f00705268adc1a838675c7a8cfde8f"
+        },
+        "beacon": "drand quicknet round 32794770"
       }
     ],
     "releases": [
