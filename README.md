@@ -53,16 +53,13 @@ its keys; `--force` does it anyway for local experiments, which must not be comm
 new ceremony (see [docs/trusted-setup-ceremony.md](docs/trusted-setup-ceremony.md)).
 
 ```bash
-# A. Generate new development keys and verifiers
+# A. Generate new development keys and verifiers (local only; do not commit them)
 ./generate_keys_verifiers.sh
 
-# B. Commit artifacts to Git LFS (commits only last_build/; add --push to push)
-./update_last_build_lfs.sh --push
-
-# C. Compile executables
+# B. Compile executables
 ./compile_circuits_gen_executables.sh
 
-# D. Start the server
+# C. Start the server
 ./run_gnark_server.sh
 ```
 
@@ -147,7 +144,7 @@ git lfs checkout
 - **Circuit changes = New keys required**: run `generate_keys_verifiers.sh` for development keys; production keys come from the ceremony
 - **Large files**: The `last_build/` directory contains large binary files managed by Git LFS
 - **Team collaboration**: All team members must have Git LFS installed
-- **After generating keys**: Always run `update_last_build_lfs.sh` to commit changes to LFS. It commits only `last_build/`, and pushes only with `--push`
+- **Development keys stay local**: never commit keys from `generate_keys_verifiers.sh`; restore the release with `git checkout -- last_build`. `update_last_build_lfs.sh` (commits only `last_build/`, pushes only with `--push`) is for artifacts that belong in the repository
 - **Storage optimization**: Periodically run `git lfs prune` to remove old artifact versions
 
 ---
@@ -156,8 +153,8 @@ git lfs checkout
 
 ```
 Did you modify circuits?
-├─ YES → Run: A → B → C → D
-│        (generate_keys → update_lfs → compile → server)
+├─ YES → Run: A → B → C
+│        (generate_keys → compile → server)
 ├─ NO → Did you modify server code?
 │       ├─ YES → Run: 1 → 2
 │       │        (compile → server)
