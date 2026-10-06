@@ -1,8 +1,9 @@
 package enygma
 
 import (
-	primitives "github.com/raylsnetwork/rayls-sovereign-gnark-api/primitives"
 	"fmt"
+	"github.com/raylsnetwork/rayls-sovereign-gnark-api/pkg/logsafe"
+	primitives "github.com/raylsnetwork/rayls-sovereign-gnark-api/primitives"
 	"math/big"
 	"net/http"
 	"os"
@@ -355,7 +356,7 @@ func handleK2(c *gin.Context, compiled *CompiledCircuit, totalStart time.Time) {
 	bindTime := time.Since(totalStart)
 
 	if err := validateInputsK2(&request); err != nil {
-		fmt.Printf("Input validation failed: %v\n", err)
+		fmt.Printf("Input validation failed: %s\n", logsafe.Err(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Input validation failed: " + err.Error(),
 		})
@@ -398,7 +399,7 @@ func handleK3(c *gin.Context, compiled *CompiledCircuit, totalStart time.Time) {
 	bindTime := time.Since(totalStart)
 
 	if err := validateInputsK3(&request); err != nil {
-		fmt.Printf("Input validation failed: %v\n", err)
+		fmt.Printf("Input validation failed: %s\n", logsafe.Err(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Input validation failed: " + err.Error(),
 		})
@@ -441,7 +442,7 @@ func handleK4(c *gin.Context, compiled *CompiledCircuit, totalStart time.Time) {
 	bindTime := time.Since(totalStart)
 
 	if err := validateInputsK4(&request); err != nil {
-		fmt.Printf("Input validation failed: %v\n", err)
+		fmt.Printf("Input validation failed: %s\n", logsafe.Err(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Input validation failed: " + err.Error(),
 		})
@@ -484,7 +485,7 @@ func handleK5(c *gin.Context, compiled *CompiledCircuit, totalStart time.Time) {
 	bindTime := time.Since(totalStart)
 
 	if err := validateInputsK5(&request); err != nil {
-		fmt.Printf("Input validation failed: %v\n", err)
+		fmt.Printf("Input validation failed: %s\n", logsafe.Err(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Input validation failed: " + err.Error(),
 		})
@@ -527,7 +528,7 @@ func handleK6(c *gin.Context, compiled *CompiledCircuit, totalStart time.Time) {
 	bindTime := time.Since(totalStart)
 
 	if err := validateInputsK6(&request); err != nil {
-		fmt.Printf("Input validation failed: %v\n", err)
+		fmt.Printf("Input validation failed: %s\n", logsafe.Err(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Input validation failed: " + err.Error(),
 		})

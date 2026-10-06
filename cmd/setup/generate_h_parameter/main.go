@@ -56,7 +56,8 @@ func (circuit *HSetupCircuit) Define(api frontend.API) error {
 func main() {
 	fmt.Println("=====================================")
 	fmt.Println("Baby Jubjub H Parameter Generator")
-	fmt.Println("=====================================\n")
+	fmt.Println("=====================================")
+	fmt.Println()
 
 	// Generate H point
 	fmt.Println("🔍 Searching for valid H point...")
@@ -230,6 +231,7 @@ func verifyPointWithCircuit(P Point) error {
 	}
 
 	// Generate proving and verifying keys
+	//gnark-safety:ignore GNARK_UNSAFE_SETUP local self-check of the H point; keys are never persisted or used by any verifier
 	pk, vk, err := groth16.Setup(ccs)
 	if err != nil {
 		return fmt.Errorf("failed to setup keys: %w", err)

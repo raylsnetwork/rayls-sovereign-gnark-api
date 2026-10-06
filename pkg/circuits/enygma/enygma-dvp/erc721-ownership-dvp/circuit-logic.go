@@ -11,6 +11,7 @@ func circuitLogic(
 	paymentCommitment frontend.Variable,
 	merkleRoot frontend.Variable,
 	nullifiers []frontend.Variable,
+	treeNumber frontend.Variable,
 	commitmentsOut []frontend.Variable,
 	privateKeys []frontend.Variable,
 	saltsIn []frontend.Variable,
@@ -24,11 +25,18 @@ func circuitLogic(
 	revertSalt frontend.Variable,
 ) error {
 
+	// The message is the DvP payment link or the ownership challenge, and the vault
+	// records nullifiers per tree number; neither is otherwise constrained.
+	primitives.BindPublicInputs(api, paymentCommitment, treeNumber)
+
 	//verify input notes
 	for i := 0; i < nInputs; i++ {
 
 		// Compute public key from private key
-		publicKey := primitives.PublicKey(api, privateKeys[i])
+		publicKey, err := primitives.PublicKey(api, privateKeys[i])
+		if err != nil {
+			return err
+		}
 		//api.Println("PublicKey computed from private key")
 
 		// Compute and verify nullifier
@@ -63,6 +71,9 @@ func circuitLogic(
 		// Enable = 1 - isZero (1 if value != 0, 0 if value == 0)
 		// This enables the merkle root check only for non-dummy inputs
 		Enable := api.Sub(1, isZero)
+
+		// A real input must not use the dummy nullifier, or the vault skips its root check
+		primitives.AssertRealInputNotDummy(api, Enable, nullifier)
 		//api.Println("Enable flag (1 for real input, 0 for dummy):", Enable)
 
 		// Diff = merkleRoots[i] - root
@@ -90,7 +101,10 @@ func circuitLogic(
 
 	// Verify revert commitment
 	// Derive sender's public key from private key — no need to pass it explicitly
-	senderPK := primitives.PublicKey(api, privateKeys[0])
+	senderPK, err := primitives.PublicKey(api, privateKeys[0])
+	if err != nil {
+		return err
+	}
 
 	// Revert uses the SAME uIdIn[0] — guarantees the revert locks the same NFT
 	revertCommit := primitives.CommitmentV2ERC721(api, senderPK, revertSalt, uIdIn[0])

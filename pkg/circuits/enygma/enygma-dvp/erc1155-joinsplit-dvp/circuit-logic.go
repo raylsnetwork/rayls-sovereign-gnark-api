@@ -12,6 +12,7 @@ func circuitLogic(
 	message frontend.Variable,
 	merkleRoots []frontend.Variable,
 	nullifiers []frontend.Variable,
+	treeNumbers []frontend.Variable,
 	commitmentsOut []frontend.Variable,
 	privateKeys []frontend.Variable,
 	saltsIn []frontend.Variable,
@@ -26,6 +27,11 @@ func circuitLogic(
 	revertCommitment frontend.Variable,
 	revertSalt frontend.Variable,
 ) error {
+	// The message links this proof to the other leg of the DvP, and the vault
+	// records nullifiers per tree number; neither is otherwise constrained.
+	primitives.BindPublicInputs(api, message)
+	primitives.BindPublicInputs(api, treeNumbers...)
+
 	inputsTotals := frontend.Variable(0)
 	outputsTotals := frontend.Variable(0)
 
@@ -49,7 +55,10 @@ func circuitLogic(
 		api.AssertIsEqual(isValid1, 1)
 
 		// Compute public key from private key
-		publicKey := primitives.PublicKey(api, privateKeys[i])
+		publicKey, err := primitives.PublicKey(api, privateKeys[i])
+		if err != nil {
+			return err
+		}
 
 		// Compute and verify nullifier
 		nullifier := primitives.Nullifier(api, privateKeys[i], pathIndices[i])
@@ -87,6 +96,9 @@ func circuitLogic(
 
 		// If Enable == 1 (real input), then Diff must be 0
 		// If Enable == 0 (dummy input), then this check is bypassed
+		// A real input must not use the dummy nullifier, or the vault skips its root check
+		primitives.AssertRealInputNotDummy(api, Enable, nullifier)
+
 		DiffTimesEnable := api.Mul(Diff, Enable)
 		//api.Println("Diff * Enable:", DiffTimesEnable)
 		//api.Println("Asserting Diff * Enable == 0")
@@ -130,7 +142,10 @@ func circuitLogic(
 
 	// Verify revert commitment
 	// Derive sender's public key from private key — no need to pass it explicitly
-	senderPK := primitives.PublicKey(api, privateKeys[0])
+	senderPK, err := primitives.PublicKey(api, privateKeys[0])
+	if err != nil {
+		return err
+	}
 
 	// Revert uses the SAME contractAddr, tokenId, inputsTotals — guarantees same token type and amount
 	revertCommit := primitives.CommitmentV2ERC1155(api, senderPK, revertSalt, erc1155ContractAddress, erc1155TokenId, inputsTotals)

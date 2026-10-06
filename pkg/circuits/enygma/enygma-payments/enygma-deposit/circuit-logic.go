@@ -1,6 +1,8 @@
 package deposit
 
 import (
+	"fmt"
+
 	common "github.com/raylsnetwork/rayls-sovereign-gnark-api/pkg/circuits/enygma/enygma-payments/common"
 	pos "github.com/raylsnetwork/rayls-sovereign-gnark-api/poseidon"
 	primitives "github.com/raylsnetwork/rayls-sovereign-gnark-api/primitives"
@@ -35,7 +37,7 @@ func circuitLogic(
 ) error {
 
 	// Subgroup order
-	JubJubPrimeSubGroup := frontend.Variable(common.JubJubPrimeSubGroupStr)
+	JubJubPrimeSubGroup := frontend.Variable(primitives.JubJubPrimeSubGroup)
 
 	//////////////////////////////////**///////////////////////////////////
 	// Check if SenderId is in K
@@ -59,8 +61,10 @@ func circuitLogic(
 
 	// Compute (p - sender_tx_value) mod p to handle sender_tx_value=0 case correctly
 	expectedTxValue := api.Sub(pDiffConstrained, vConstrained)
-	expectedTxValueInter, _ := api.NewHint(primitives.ModHintBabyJubJub, 2, expectedTxValue)
-	expectedTxValueMod := expectedTxValueInter[0]
+	expectedTxValueMod, err := primitives.ModSubgroup(api, expectedTxValue)
+	if err != nil {
+		return fmt.Errorf("sender tx value: %w", err)
+	}
 
 	api.AssertIsEqual(selectedVConstrained, expectedTxValueMod)
 
@@ -70,15 +74,21 @@ func circuitLogic(
 
 	///////////////////////////////////**///////////////////////////////////
 	// Check knowledge of secret of sender
-	common.CheckSecretKnowledge(api, k, senderId, anonymity_set, shared_secrets, previousR, secret_key)
+	if err := common.CheckSecretKnowledge(api, k, senderId, anonymity_set, shared_secrets, previousR, secret_key); err != nil {
+		return err
+	}
 
 	///////////////////////////////////**///////////////////////////////////
 	// Check if Hash Array of Secret is well formed
-	common.CheckHashArrayOfSecrets(api, k, shared_secrets, arrayHashSecret)
+	if err := common.CheckHashArrayOfSecrets(api, k, shared_secrets, arrayHashSecret); err != nil {
+		return err
+	}
 
 	///////////////////////////////////**///////////////////////////////////
 	// Knowledge of SecretKey - Perform public key generation and check if SecretKey generate senderId's PublicKey
-	common.CheckPublicKeyKnowledge(api, k, senderId, anonymity_set, publicKey, secret_key)
+	if err := common.CheckPublicKeyKnowledge(api, k, senderId, anonymity_set, publicKey, secret_key); err != nil {
+		return err
+	}
 
 	///////////////////////////////////**///////////////////////////////////
 	// Check Knowledge of Previous Commitment
@@ -103,6 +113,7 @@ func circuitLogic(
 	///////////////////////////////////**///////////////////////////////////
 	// Range Proof: previousV >= sender_tx_value and sender_tx_value >= 0
 	common.CheckRangeProofWithPreviousV(api, previousV, sender_tx_value)
+	common.CheckReceiverAmounts(api, k, senderId, anonymity_set, txValue)
 
 	///////////////////////////////////**//////////////////////////////////////
 	// Knowledge of Nullifier
@@ -114,11 +125,15 @@ func circuitLogic(
 
 	///////////////////////////////////**//////////////////////////////////////
 	// Knowledge of Message Tag - Perform verification is message tag is well formed
-	common.CheckMessageTags(api, k, shared_secrets, blockNumber, message_tags)
+	if err := common.CheckMessageTags(api, k, shared_secrets, blockNumber, message_tags); err != nil {
+		return err
+	}
 
 	// ///////////////////////////////////**//////////////////////////////////////
 	// Check if random factors R are well formed
-	common.CheckRandomFactors(api, k, senderId, anonymity_set, shared_secrets, blockNumber, txRandom)
+	if err := common.CheckRandomFactors(api, k, senderId, anonymity_set, shared_secrets, blockNumber, txRandom); err != nil {
+		return err
+	}
 
 	///////////////////////////////////**//////////////////////////////////////
 	// Check if Hash(commitment in Dvp - MerkleTree) is well formed (V2)

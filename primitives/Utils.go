@@ -18,73 +18,16 @@ var hintRegistrationOnce sync.Once
 func init() {
 	hintRegistrationOnce.Do(func() {
 		solver.RegisterHint(ModHintBabyJubJub)
-		solver.RegisterHint(ModHintBN254)
 		fmt.Println("✓ Hint functions registered")
 	})
 }
 
+// ModHintBabyJubJub returns (value mod l, value / l) for l = JubJubPrimeSubGroup.
+// Its outputs are unconstrained; call it only through ModSubgroup.
 func ModHintBabyJubJub(mod *big.Int, inputs []*big.Int, res []*big.Int) error {
 	p := JubJubPrimeSubGroup
 
-	// Debug log
-	//fmt.Println("JOINSPLIT: Using BabyJubJub prime:", p.String())
-
-	value := inputs[0]
-	q := new(big.Int)
-	r := new(big.Int)
-
-	q.DivMod(value, p, r) // q = value / p, r = value % p
-
-	res[0] = r // remainder
-	res[1] = q // quotient
-	return nil
-
-}
-
-func ModHintBN254(mod *big.Int, inputs []*big.Int, res []*big.Int) error {
-	p := JubJubPrimeGroup
-
-	// Debug log
-	//fmt.Println("JOINSPLIT: Using BN254 prime:", p.String())
-
-	value := inputs[0]
-	q := new(big.Int)
-	r := new(big.Int)
-
-	q.DivMod(value, p, r) // q = value / p, r = value % p
-
-	res[0] = r // remainder
-	res[1] = q // quotient
-	return nil
-
-}
-
-func Erc155UniqueIdNative(mod *big.Int, inputs []*big.Int, res []*big.Int) error {
-	p := JubJubPrimeGroup
-
-	address := inputs[0]
-	id := inputs[1]
-	amount := inputs[2]
-	id1, _ := poseidon.Hash([]*big.Int{address, id})
-	id1.Mod(id1, p)
-
-	erc1155Id, _ := poseidon.Hash([]*big.Int{id1, amount})
-	erc1155Id.Mod(erc1155Id, p)
-	res[0] = erc1155Id
-	return nil
-}
-
-func PoseidonNative(mod *big.Int, inputs []*big.Int, res []*big.Int) error {
-	p := JubJubPrimeGroup
-
-	value := inputs[0]
-	random := inputs[1]
-
-	hash, _ := poseidon.Hash([]*big.Int{value, random})
-
-	hash.Mod(hash, p)
-
-	res[0] = hash
+	res[1].DivMod(inputs[0], p, res[0]) // res[1] = quotient, res[0] = remainder
 	return nil
 }
 
@@ -239,7 +182,7 @@ func ComputeErc1155UniqueIdBN254(contractAddress, tokenId, amount string) string
 	if err != nil {
 		panic(err)
 	}
-	hash1.Mod(hash1, p) // Apply modulus (this is what ModHintBN254 does)
+	hash1.Mod(hash1, p) // No-op: Poseidon output is already below the BN254 modulus
 
 	// Second hash: Poseidon(hash1, amount)
 	hash2, err := poseidon.Hash([]*big.Int{hash1, amountBig})
