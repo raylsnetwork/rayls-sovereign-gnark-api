@@ -202,15 +202,3 @@ the contracts repository can't be deployed, so if that commit is missing, run
   review decision on the pull request that adds the key.
 - **Phase 1 trust is inherited** from the Perpetual Powers of Tau.
 
-## Next steps
-
-- [x] Time a full run: `verify` of release v1 takes about 20 minutes on a
-      20-core, 32 GB laptop (6 circuits at a time), down from over 3 hours.
-- [ ] Make the first production release (first contributor) and deploy it.
-- [ ] Add a CI check that runs `./ceremony.sh verify` on every contribution pull
-      request.
-- [ ] Add a startup check in gnark-api that refuses keys whose hashes differ
-      from the latest release in `ceremony/manifest.json`.
-- [x] Gate `setup_keys_verifiers.go` so single-party keys can't overwrite a
-      release: it refuses while the ceremony has one, unless `--force`.
-- [ ] Check on-chain history for proofs forged before the circuit fixes.
