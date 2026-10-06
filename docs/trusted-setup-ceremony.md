@@ -127,13 +127,13 @@ circuit files.
 
 | Command | What it does |
 |---|---|
-| `join` | For a new participant: `verify`, `register`, `contribute`, `finalize --wait` and (optionally) `copy-verifiers`, in order |
+| `join` | For a new participant: `git pull` and `git lfs pull` (and `git pull` in the contracts repository), then `verify`, `register`, `contribute`, `finalize --wait` and (optionally) `copy-verifiers`, in order |
 | `init` | Compiles the 18 circuits, records their R1CS hashes, imports phase 1 |
 | `register` | Adds the contributor's SSH public key to the allowlist |
 | `contribute` | Checks and extends the chain, announces the next beacon, writes an attestation, signed commit |
 | `finalize` | Waits for the announced beacon, releases keys into `last_build/`, converts the verifiers |
 | `verify` | Checks phase 1 against the `.ptau`, every contribution, every release (re-derived), every beacon against drand, every signature against the registered key, and `last_build/` against the latest release |
-| `copy-verifiers` | Copies the latest release's verifiers into the contracts repository |
+| `copy-verifiers` | Copies the latest release's verifiers into the contracts repository and commits them there |
 | `status` | Shows phase 1, contributions and releases |
 | `clean` | Removes leftovers of an interrupted run |
 
@@ -178,6 +178,18 @@ relayer must be deployed together, and every institution must upgrade at the
 same time: proofs made with one release's keys don't verify against another's.
 Batching contributions into releases keeps upgrades rare. Before deploying,
 each institution runs `./ceremony.sh verify`.
+
+A release reaches `main` through two pull requests, opened only once both
+repositories have all their commits:
+
+- rayls-sovereign-gnark-api: 3 commits (register, contribution, release; 2 if
+  the contributor was already registered);
+- rayls-sovereign-contracts: 1 commit with the release's verifiers, on a
+  branch with the same name as the gnark-api one.
+
+`join --contracts DIR` makes all four. A release whose verifiers never reach
+the contracts repository can't be deployed, so if that commit is missing, run
+`./ceremony.sh copy-verifiers` before the contributor's machine is destroyed.
 
 ## Limitations
 

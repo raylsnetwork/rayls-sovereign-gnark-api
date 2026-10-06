@@ -61,10 +61,12 @@ Joining the ceremony (all of steps 2-6 below, in order):
   join          --name NAME [--key PUBKEY] [--note TEXT] [--beacon-delay MIN]
                 [--jobs N] [--contracts DIR] [--skip-verify] [--no-finalize]
                 [--push]
-                Verify the ceremony so far, register, contribute, wait for the
-                announced drand round and release new keys, and (with
-                --contracts) copy the verifiers. --no-finalize stops after
-                contributing, to let others contribute before the next release.
+                Pull this repository (and Git LFS files) and the contracts
+                repository, verify the ceremony so far, register, contribute,
+                wait for the announced drand round and release new keys, and
+                (with --contracts) copy and commit the verifiers there.
+                --no-finalize stops after contributing, to let others
+                contribute before the next release.
 
 Commands, in the order you run them:
 
@@ -91,9 +93,10 @@ Commands, in the order you run them:
                 contribution, signatures, attestations, every release's drand
                 beacon, and that $OUT/ matches the latest release.
 
-  6. copy-verifiers [--contracts DIR]
+  6. copy-verifiers [--contracts DIR] [--push]
                 Copy the release's Solidity verifiers into the contracts
-                repository (default: ../rayls-sovereign-contracts).
+                repository (default: ../rayls-sovereign-contracts) and commit
+                them there.
 
 Other commands:
 
@@ -162,7 +165,17 @@ default_key() {
 key_body() { awk '{print $1, $2}' "$1"; }
 
 require_key() {
-    [ -n "$KEY" ] && [ -f "$KEY" ] || die "SSH public key not found; pass --key ~/.ssh/<key>.pub"
+    [ -n "$KEY" ] && [ -f "$KEY" ] && return 0
+    cat >&2 <<'EOF'
+ceremony.sh: SSH public key not found; pass --key ~/.ssh/<key>.pub
+
+If you have no SSH key yet (e.g. on a fresh VM), create one and rerun:
+
+  ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -C "<your name or institution>"
+
+It signs your ceremony commits and is registered under your --name.
+EOF
+    exit 1
 }
 
 # signing_key prints what git should sign with: the public key when ssh-agent
@@ -521,6 +534,7 @@ cmd_finalize() {
         sleep 30
     done
     version=$(( $(info latest_release) + 1 ))
+    use_branch "release-v$version"
     step "releasing v$version with drand quicknet round $round: $value"
     trap 'discard_uncommitted; die "interrupted; nothing was released"' INT TERM
     if ! tool finalize --dir "$DIR" --beacon "$value" --out "$OUT" --jobs "$JOBS"; then
@@ -596,6 +610,7 @@ cmd_verify() {
 
 cmd_join() {
     local name="" note="" delay="$DEFAULT_DELAY" contracts="" pre_verify=1 finalize=1
+    local orig_args=("$@")
     while [ $# -gt 0 ]; do
         case "$1" in
             --name) name="$2"; shift 2 ;;
@@ -613,14 +628,31 @@ cmd_join() {
     [[ "$name" =~ $NAME_RE ]] || die "--name must be lowercase letters, digits and dashes (e.g. bank-a)"
     [[ "$delay" =~ ^[0-9]+$ ]] && [ "$delay" -ge 3 ] || die "--beacon-delay must be a whole number of minutes, at least 3"
     require_key
-    require_ceremony
-    require_clean_ceremony
-    require_up_to_date
     if [ "$DEMO" = "0" ]; then
         command -v git-lfs >/dev/null || die "Git LFS is not installed (https://git-lfs.com)"
+    fi
+    if [ -n "$contracts" ] && [ "$finalize" = "1" ]; then
+        [ "$DEMO" = "0" ] || die "--contracts is not for demo mode"
+        prepare_contracts "$contracts"
+    fi
+
+    # Start from the latest state of the ceremony, and build the tool from it.
+    require_clean_ceremony
+    local before
+    before="$(git hash-object ceremony.sh)"
+    pull_repo "$ROOT"
+    # The pull may have updated this script: run the new version instead.
+    if [ "$(git hash-object ceremony.sh)" != "$before" ] && [ -z "${CEREMONY_RESTARTED:-}" ]; then
+        step "ceremony.sh was updated by the pull; restarting it"
+        CEREMONY_RESTARTED=1 exec ./ceremony.sh join "${orig_args[@]}"
+    fi
+    if [ "$DEMO" = "0" ]; then
         step "fetching the ceremony files from Git LFS"
         git lfs pull || die "git lfs pull failed"
     fi
+    build_tool
+    require_ceremony
+    require_up_to_date
 
     # Push once at the end, not after each step.
     JOINING=1
@@ -649,7 +681,7 @@ cmd_join() {
     fi
 
     if [ "$finalize" = "1" ] && [ -n "$contracts" ]; then
-        step "step 5/5: copying the verifiers into $contracts"
+        step "step 5/5: copying and committing the verifiers in $contracts"
         cmd_copy_verifiers --contracts "$contracts"
     else
         step "step 5/5: verifiers not copied (pass --contracts DIR, or run ./ceremony.sh copy-verifiers later)"
@@ -670,18 +702,54 @@ cmd_clean() {
     step "removed the uncommitted changes above"
 }
 
+# contracts_verifier_dir DIR prints where the verifiers live in the contracts
+# repository at DIR, or fails if DIR does not look like it.
+contracts_verifier_dir() {
+    local base="$1/src/rayls-protocol/Enygma"
+    [ -d "$base/Enygma-DVP" ] && [ -d "$base/Enygma-Payments" ] || die "$1 does not look like rayls-sovereign-contracts (pass --contracts DIR)"
+    echo "$base"
+}
+
+# prepare_contracts DIR fails early if the contracts repository at DIR is
+# missing or has uncommitted verifier changes, and pulls it.
+prepare_contracts() {
+    local base
+    base="$(contracts_verifier_dir "$1")"
+    [ -z "$(git -C "$1" status --porcelain -- "$base")" ] \
+        || die "uncommitted changes under $base: commit or discard them first"
+    pull_repo "$1"
+}
+
+# pull_repo DIR fast-forwards the git repository at DIR from its upstream.
+pull_repo() {
+    local branch
+    branch="$(git -C "$1" branch --show-current)"
+    if ! git -C "$1" rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1; then
+        step "$1: branch $branch has no upstream; not pulling"
+        return 0
+    fi
+    step "$1: pulling $branch"
+    git -C "$1" pull --ff-only --quiet || die "git pull failed in $1 (local commits or conflicts?)"
+}
+
 cmd_copy_verifiers() {
     local contracts="$ROOT/../rayls-sovereign-contracts"
     while [ $# -gt 0 ]; do
         case "$1" in
             --contracts) contracts="$2"; shift 2 ;;
+            --push) PUSH=1; shift ;;
             *) die "copy-verifiers: unknown option $1" ;;
         esac
     done
     [ "$DEMO" = "0" ] || die "demo verifiers are not for the contracts repository"
-    [ "$(info latest_release)" != "0" ] || die "there is no release yet: run ./ceremony.sh finalize first"
-    local base="$contracts/src/rayls-protocol/Enygma" f name dest n=0
-    [ -d "$base/Enygma-DVP" ] && [ -d "$base/Enygma-Payments" ] || die "$contracts does not look like rayls-sovereign-contracts (pass --contracts DIR)"
+    local version
+    version="$(info latest_release)"
+    [ "$version" != "0" ] || die "there is no release yet: run ./ceremony.sh finalize first"
+    local base f name dest n=0
+    base="$(contracts_verifier_dir "$contracts")"
+    [ -z "$(git -C "$contracts" status --porcelain -- "$base")" ] \
+        || die "uncommitted changes under $base: commit or discard them first"
+    contracts_use_branch "$contracts" "$version"
     for f in "$OUT"/*Verifier*.sol; do
         case "$f" in *_raw.sol) continue ;; esac
         name="$(basename "$f")"
@@ -693,7 +761,53 @@ cmd_copy_verifiers() {
         n=$((n + 1))
     done
     [ "$n" -gt 0 ] || die "no verifiers found in $OUT/"
-    step "copied $n verifiers into $contracts (release v$(info latest_release)). Review and commit them there."
+    step "copied $n verifiers into $contracts (release v$version)"
+    commit_contracts "$contracts" "$base" "$version"
+}
+
+# contracts_use_branch DIR VERSION puts the contracts repository at DIR on the
+# branch this repository is on, so both pull requests share a name. When this
+# repository is on the default branch, both use ceremony/release-vVERSION.
+contracts_use_branch() {
+    local contracts="$1" branch
+    branch="$(git branch --show-current)"
+    [ -n "$branch" ] || die "this repository is not on a branch (detached HEAD)"
+    if [ "$branch" = "$DEFAULT_BRANCH" ] || [ "$branch" = "master" ]; then
+        branch="ceremony/release-v$2"
+    fi
+    [ "$(git -C "$contracts" branch --show-current)" != "$branch" ] || return 0
+    if git -C "$contracts" rev-parse -q --verify "refs/heads/$branch" >/dev/null \
+        || git -C "$contracts" rev-parse -q --verify "refs/remotes/origin/$branch" >/dev/null; then
+        git -C "$contracts" switch -q "$branch" || die "could not switch $contracts to branch $branch"
+    else
+        git -C "$contracts" switch -q -c "$branch" || die "could not create branch $branch in $contracts"
+    fi
+    step "$contracts: working on branch $branch"
+}
+
+# commit_contracts DIR BASE VERSION commits the verifiers copied under BASE in
+# the contracts repository at DIR, and pushes with --push.
+commit_contracts() {
+    local contracts="$1" base="$2" version="$3"
+    git -C "$contracts" add -- "$base"
+    if git -C "$contracts" diff --cached --quiet -- "$base"; then
+        step "$contracts already has the release v$version verifiers; nothing to commit"
+        return 0
+    fi
+    git -C "$contracts" commit -q -F - -- "$base" <<EOF || die "commit failed in $contracts"
+chore(enygma): verifiers from trusted-setup ceremony release v$version
+
+Release v$version of the phase 2 ceremony in rayls-sovereign-gnark-api
+($(tool releases --dir "$DIR" 2>/dev/null | awk -F'\t' -v v="$version" '$1 == v {print "contributions 1-" $2 ", beacon " $3}')).
+Only the verifying-key constants change.
+EOF
+    step "$contracts: committed the release v$version verifiers"
+    if [ "$PUSH" = "1" ]; then
+        git -C "$contracts" push -u origin HEAD || die "push failed in $contracts"
+        step "$contracts: pushed $(git -C "$contracts" branch --show-current); open a pull request into $DEFAULT_BRANCH"
+    else
+        step "$contracts: not pushed. When ready: git -C $contracts push -u origin HEAD, then open a pull request"
+    fi
 }
 
 # --- main -----------------------------------------------------------------
@@ -704,7 +818,8 @@ JOINING=0
 cmd="${1:-help}"
 [ $# -gt 0 ] && shift
 case "$cmd" in
-    init|join|register|contribute|finalize|verify|status|copy-verifiers) build_tool ;;
+    # join builds it itself, after pulling.
+    init|register|contribute|finalize|verify|status|copy-verifiers) build_tool ;;
 esac
 case "$cmd" in
     round-at)   cmd_round_at "$@" ;;

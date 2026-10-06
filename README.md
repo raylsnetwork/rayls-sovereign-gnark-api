@@ -247,7 +247,15 @@ Background and design: [docs/trusted-setup-ceremony.md](docs/trusted-setup-cerem
 
 - Go (the version in `go.mod`), git 2.34 or newer, Git LFS, and `curl`
 - An SSH key for signing, e.g. `~/.ssh/id_ed25519.pub`, loaded in `ssh-agent` or with its
-  private key next to it
+  private key next to it. On a fresh machine there is none yet, and `ceremony.sh` stops with
+  "SSH public key not found". Create one, then rerun:
+
+  ```bash
+  ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -C "<your name or institution>"
+  ```
+
+  Each contributor needs its own key: it is registered under your `--name` and signs your
+  ceremony commits.
 - About 150 MB of disk for the Perpetual Powers of Tau file (downloaded once to
   `~/.cache/rayls-ceremony`) and about 2.5 GB of memory per parallel job (`--jobs`; by
   default half the CPU cores, at most 9, and no more than available memory allows)
@@ -260,10 +268,13 @@ Phase 1 is already imported, so a new institution or user joins with a single co
 every step below in order and stops at the first error:
 
 ```bash
-git switch main && git pull && git lfs pull
+git switch main
 ./ceremony.sh join --name bank-b --note "Fresh VM, destroyed afterwards" \
     --contracts ../rayls-sovereign-contracts --push
 ```
+
+Before anything else, `join` runs `git pull` and `git lfs pull` here and `git pull` in the
+contracts repository, so it always starts from the latest ceremony state.
 
 | Step | What `join` does | Time |
 |---|---|---|
@@ -271,11 +282,29 @@ git switch main && git pull && git lfs pull
 | 2. register | Registers your SSH key under `--name`; skipped if it already is | seconds |
 | 3. contribute | Adds your randomness and announces a drand round `--beacon-delay` minutes ahead (default 45) | ~20 min |
 | 4. finalize | Waits for that round, then releases keys that include your contribution into `last_build/` | the rest of the delay, then ~20 min |
-| 5. copy-verifiers | With `--contracts DIR`, copies the new verifiers there for you to review and commit | seconds |
+| 5. copy-verifiers | With `--contracts DIR`, copies the new verifiers there and commits them | seconds |
 
-Everything is committed on a `ceremony/join-NAME` branch (when started from `main`) and pushed at
-the end with `--push`; then open a pull request. Keep the machine **awake and plugged in** until
-it finishes.
+Everything is committed on a `ceremony/join-NAME` branch (when started from `main`; from any
+other branch, on that branch), and the verifiers on a branch **of the same name** in the
+contracts repository, so the two pull requests match. `--push` pushes both.
+Keep the machine **awake and plugged in** until it finishes.
+
+#### Before opening the pull requests
+
+A complete run leaves **four commits in two repositories**. Check they are all there before
+opening the pull requests; only then open them, **one in each repository**:
+
+| Repository | Commits | Check with |
+|---|---|---|
+| rayls-sovereign-gnark-api | 3: `ceremony: register contributor NAME`, `ceremony: contribution N by NAME`, `ceremony: release vN` | `git log --oneline origin/main..HEAD` |
+| rayls-sovereign-contracts | 1: `chore(enygma): verifiers from trusted-setup ceremony release vN` | `git -C ../rayls-sovereign-contracts log --oneline origin/main..HEAD` |
+
+If the contracts commit is missing (e.g. `--contracts` was left out), run
+`./ceremony.sh copy-verifiers --push` before destroying the machine: a release whose verifiers
+never reach the contracts repository can't be deployed. If you were already registered, the
+gnark-api repository has 2 commits (no register commit). With `--no-finalize` there is no
+release and no contracts commit yet; whoever runs `finalize` later makes them and opens both
+pull requests.
 
 Write down the **contribution hash** it prints and publish it: it is how you (and anyone else)
 confirm later that your contribution is in the keys.
@@ -344,8 +373,9 @@ else) confirm later that your contribution is in the keys.
 ./ceremony.sh finalize --wait
 ```
 
-This writes the new release's keys, R1CS and Solidity verifiers to `last_build/` and commits.
-`--wait` waits for the round if it isn't published yet.
+This writes the new release's keys, R1CS and Solidity verifiers to `last_build/` and commits,
+on a `ceremony/release-vN` branch when run from `main`. `--wait` waits for the round if it isn't
+published yet.
 
 **5. `verify`: everyone, at every release.**
 
@@ -363,9 +393,14 @@ verifiers by their verifying-key constants).
 **6. `copy-verifiers`, push, and deploy.**
 
 ```bash
-./ceremony.sh copy-verifiers        # into ../rayls-sovereign-contracts (or --contracts DIR)
-git push -u origin HEAD             # then open a pull request
+./ceremony.sh copy-verifiers --push # copies and commits into ../rayls-sovereign-contracts (or --contracts DIR)
+git push -u origin HEAD
 ```
+
+`copy-verifiers` commits in the contracts repository on a branch with the same name as the one
+this repository is on (`ceremony/release-vN` if this one is on `main`). Then check the commits in
+both repositories and open the two pull requests, as in
+[Before opening the pull requests](#before-opening-the-pull-requests).
 
 Every release changes the keys, so the new verifiers, the gnark-api build with the new
 `last_build/` and the relayer must be deployed together, and every institution must upgrade at
@@ -420,18 +455,18 @@ and run `./ceremony.sh join --name other-bank --key /tmp/other.pub`.
 
 | # | Command | What it does | What it commits |
 |---|---|---|---|
-| | `join --name NAME [--contracts DIR] [--beacon-delay MIN] [--no-finalize] [--skip-verify]` | Steps 5, 2, 3, 4 and 6, in that order, for a new participant | everything steps 2–4 commit |
+| | `join --name NAME [--contracts DIR] [--beacon-delay MIN] [--no-finalize] [--skip-verify]` | Pulls, then steps 5, 2, 3, 4 and 6, in that order, for a new participant | everything steps 2–4 and 6 commit |
 | 1 | `init [--ptau FILE]` | Imports phase 1 (once per repository) | `ceremony/manifest.json`, phase 1 parameters, the Git LFS rule |
 | 2 | `register --name NAME [--key PUBKEY]` | Registers your signing key | `ceremony/contributors/NAME.pub`, `allowed_signers` |
 | 3 | `contribute --name NAME [--note TEXT] [--beacon-delay MIN] [--jobs N]` | Adds your phase 2 contribution and announces the next beacon | the contribution, its attestation, the manifest |
 | 4 | `finalize [--wait] [--jobs N]` | Releases keys once the announced beacon is published | `last_build/`, the release record |
 | 5 | `verify [--no-ptau] [--jobs N]` | Checks everything | nothing |
-| 6 | `copy-verifiers [--contracts DIR]` | Copies the release's verifiers into the contracts repository | nothing (review and commit them there) |
+| 6 | `copy-verifiers [--contracts DIR]` | Copies the release's verifiers into the contracts repository | the verifiers, in the contracts repository |
 | | `status` | Shows phase 1, contributions and releases | nothing |
 | | `clean` | Removes leftovers of an interrupted run | nothing |
 | | `round-at "YYYY-MM-DD HH:MM UTC"` | Prints the drand round for a time | nothing |
 
-`join`, `register`, `contribute` and `finalize` also accept `--push`. Run `./ceremony.sh help` for all
+`join`, `register`, `contribute`, `finalize` and `copy-verifiers` also accept `--push`. Run `./ceremony.sh help` for all
 options; `CEREMONY_JOBS` sets the default for `--jobs` (0, the default, picks it automatically).
 
 ### Tips for contributors
