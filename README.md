@@ -63,6 +63,11 @@ new ceremony (see [docs/trusted-setup-ceremony.md](docs/trusted-setup-ceremony.m
 ./run_gnark_server.sh
 ```
 
+When development and testing are done, run a full
+[trusted-setup ceremony](#-trusted-setup-ceremony) for the new circuits. Only the
+ceremony's keys and verifiers are committed and pushed, here and in the contracts
+repository; development keys and verifiers never are.
+
 ### When Only Server Code Changes
 For API or server logic updates (no circuit modifications):
 
@@ -144,7 +149,7 @@ git lfs checkout
 - **Circuit changes = New keys required**: run `generate_keys_verifiers.sh` for development keys; production keys come from the ceremony
 - **Large files**: The `last_build/` directory contains large binary files managed by Git LFS
 - **Team collaboration**: All team members must have Git LFS installed
-- **Development keys stay local**: never commit keys from `generate_keys_verifiers.sh`; restore the release with `git checkout -- last_build`. `update_last_build_lfs.sh` (commits only `last_build/`, pushes only with `--push`) is for artifacts that belong in the repository
+- **Development keys stay local**: never commit keys or verifiers from `generate_keys_verifiers.sh`; restore the release with `git checkout -- last_build`. After development and testing, run a full ceremony and push only its keys and verifiers. `update_last_build_lfs.sh` (commits only `last_build/`, pushes only with `--push`) is for artifacts that belong in the repository
 - **Storage optimization**: Periodically run `git lfs prune` to remove old artifact versions
 
 ---
