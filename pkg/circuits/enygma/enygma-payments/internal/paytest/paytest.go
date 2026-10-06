@@ -7,7 +7,9 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/consensys/gnark/frontend"
 	"github.com/iden3/go-iden3-crypto/poseidon"
+	"github.com/raylsnetwork/rayls-sovereign-gnark-api/pkg/circuits/internal/circuittest"
 	"github.com/raylsnetwork/rayls-sovereign-gnark-api/primitives"
 )
 
@@ -72,6 +74,45 @@ func (f *Fixture) SetTxValues(values ...*big.Int) {
 		}
 		f.TxValues[i] = v
 		f.TxCommits[i] = pedersen(v, f.TxRandom[i])
+	}
+}
+
+// Assign sets on c, a pointer to a payment circuit struct, the witness fields
+// every payment circuit shares. The caller sets the circuit's own fields.
+func (f *Fixture) Assign(t testing.TB, c frontend.Circuit) {
+	t.Helper()
+	scalars := map[string]*big.Int{
+		"SenderId":                  f.SenderID,
+		"SecretKey":                 f.SecretKey,
+		"PreviousSenderBalance":     f.PreviousV,
+		"PreviousSenderRandomValue": f.PreviousR,
+		"SenderTxValue":             f.SenderTxValue,
+		"Nullifier":                 f.Nullifier,
+		"BlockNumber":               f.BlockNumber,
+	}
+	for name, x := range scalars {
+		circuittest.Set(t, c, name, x)
+	}
+	arrays := map[string][]*big.Int{
+		"SharedSecrets":       f.SharedSecrets,
+		"HashedSharedSecrets": f.HashedSharedSecrets,
+		"PublicKey":           f.PublicKeys,
+		"TxValues":            f.TxValues,
+		"TxRandomValues":      f.TxRandom,
+		"AnonymitySet":        f.AnonymitySet,
+		"MessageTags":         f.MessageTags,
+	}
+	for name, xs := range arrays {
+		for i, x := range xs {
+			circuittest.Set(t, c, name, x, i)
+		}
+	}
+	points := map[string][][2]*big.Int{"PreviousCommits": f.PreviousCommits, "TxCommits": f.TxCommits}
+	for name, ps := range points {
+		for i, p := range ps {
+			circuittest.Set(t, c, name, p[0], i, 0)
+			circuittest.Set(t, c, name, p[1], i, 1)
+		}
 	}
 }
 
