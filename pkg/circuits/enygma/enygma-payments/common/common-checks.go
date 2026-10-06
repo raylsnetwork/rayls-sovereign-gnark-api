@@ -155,18 +155,18 @@ func CheckTxCommitmentsWellFormed(api frontend.API, k int, txValue []frontend.Va
 }
 
 // CheckMessageTags verifies message tags are well formed
-// For all participants: MessageTag[i] = Poseidon(HashTag, shared_secrets[i], blockNumber)
-// shared_secrets[] is the preselected sender row
-func CheckMessageTags(api frontend.API, k int, shared_secrets []frontend.Variable, blockNumber frontend.Variable, message_tags []frontend.Variable) error {
+// For all participants: MessageTag[i] = Poseidon(HashTag, sharedSecrets[i], blockNumber)
+// sharedSecrets[] is the preselected sender row
+func CheckMessageTags(api frontend.API, k int, sharedSecrets []frontend.Variable, blockNumber frontend.Variable, messageTags []frontend.Variable) error {
 	HashTag := pos.Poseidon(api, []frontend.Variable{12})
 	for i := 0; i < k; i++ {
-		calculatedMessageTag := pos.Poseidon(api, []frontend.Variable{HashTag, shared_secrets[i], blockNumber})
+		calculatedMessageTag := pos.Poseidon(api, []frontend.Variable{HashTag, sharedSecrets[i], blockNumber})
 		calculatedMessageTagMod, err := primitives.ModSubgroup(api, calculatedMessageTag)
 		if err != nil {
 			return fmt.Errorf("check message tags: %w", err)
 		}
 
-		api.AssertIsEqual(message_tags[i], calculatedMessageTagMod)
+		api.AssertIsEqual(messageTags[i], calculatedMessageTagMod)
 	}
 	return nil
 }

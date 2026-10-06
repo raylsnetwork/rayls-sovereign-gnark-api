@@ -28,7 +28,7 @@ cd "$ROOT"
 
 # CEREMONY_DEMO=1 rehearses the flow with two tiny circuits and an insecure
 # local phase 1 in ceremony-demo/, leaving ceremony/ and last_build/ untouched.
-if [ "${CEREMONY_DEMO:-}" = "1" ]; then
+if [[ "${CEREMONY_DEMO:-}" = "1" ]]; then
     DEMO=1
     DIR="ceremony-demo"
     OUT="ceremony-demo/last_build"
@@ -45,7 +45,7 @@ fi
 
 TOOL_DIR=""
 cleanup() {
-    if [ -n "$TOOL_DIR" ]; then rm -rf "$TOOL_DIR"; fi
+    if [[ -n "$TOOL_DIR" ]]; then rm -rf "$TOOL_DIR"; fi
 }
 trap cleanup EXIT
 
@@ -127,24 +127,25 @@ build_tool() {
 }
 
 tool() {
-    [ -n "$TOOL_DIR" ] || die "internal error: the ceremony tool is not built"
+    [[ -n "$TOOL_DIR" ]] || die "internal error: the ceremony tool is not built"
     "$TOOL_DIR/ceremony" "$@"
 }
 
 # info KEY prints one value from the tool's machine-readable state.
 info() {
-    tool info --dir "$DIR" 2>/dev/null | sed -n "s/^$1=//p"
+    local key="$1"
+    tool info --dir "$DIR" 2>/dev/null | sed -n "s/^${key}=//p"
 }
 
 require_ceremony() {
-    [ -f "$DIR/manifest.json" ] || die "no ceremony in $DIR/ yet (start it with ./ceremony.sh init)"
+    [[ -f "$DIR/manifest.json" ]] || die "no ceremony in $DIR/ yet (start it with ./ceremony.sh init)"
 }
 
 # fetch_ptau prints the path of the cached powers-of-tau file, downloading it
 # on first use.
 fetch_ptau() {
     local file="$CACHE_DIR/$(basename "$PTAU_URL")"
-    if [ ! -f "$file" ]; then
+    if [[ ! -f "$file" ]]; then
         mkdir -p "$CACHE_DIR"
         step "downloading $(basename "$PTAU_URL") (about 150 MB, once) to $CACHE_DIR"
         curl -fSL --retry 3 -o "$file.part" "$PTAU_URL" || die "could not download $PTAU_URL"
@@ -157,15 +158,15 @@ fetch_ptau() {
 
 default_key() {
     for k in "$HOME/.ssh/id_ed25519.pub" "$HOME/.ssh/id_ecdsa.pub" "$HOME/.ssh/id_rsa.pub"; do
-        [ -f "$k" ] && { echo "$k"; return; }
+        [[ -f "$k" ]] && { echo "$k"; return; }
     done
 }
 
 # key_body prints "type base64" of a public key, dropping the comment.
-key_body() { awk '{print $1, $2}' "$1"; }
+key_body() { local file="$1"; awk '{print $1, $2}' "$file"; }
 
 require_key() {
-    [ -n "$KEY" ] && [ -f "$KEY" ] && return 0
+    [[ -n "$KEY" ]] && [[ -f "$KEY" ]] && return 0
     cat >&2 <<'EOF'
 ceremony.sh: SSH public key not found; pass --key ~/.ssh/<key>.pub
 
@@ -181,9 +182,9 @@ EOF
 # signing_key prints what git should sign with: the public key when ssh-agent
 # holds it, otherwise the private key file next to it.
 signing_key() {
-    if [ -n "${SSH_AUTH_SOCK:-}" ] && ssh-add -L 2>/dev/null | grep -qF "$(key_body "$KEY")"; then
+    if [[ -n "${SSH_AUTH_SOCK:-}" ]] && ssh-add -L 2>/dev/null | grep -qF "$(key_body "$KEY")"; then
         echo "$KEY"
-    elif [ -f "${KEY%.pub}" ]; then
+    elif [[ -f "${KEY%.pub}" ]]; then
         echo "${KEY%.pub}"
     else
         die "the private key for $KEY is neither in ssh-agent nor at ${KEY%.pub}"
@@ -209,7 +210,7 @@ regenerate_allowed_signers() {
     local out="$DIR/contributors/allowed_signers" f
     : > "$out"
     for f in "$DIR"/contributors/*.pub; do
-        [ -e "$f" ] || continue
+        [[ -e "$f" ]] || continue
         echo "$(basename "$f" .pub) namespaces=\"git\" $(key_body "$f")" >> "$out"
     done
 }
@@ -217,7 +218,7 @@ regenerate_allowed_signers() {
 # --- git helpers ----------------------------------------------------------
 
 require_clean_ceremony() {
-    [ -z "$(git status --porcelain -- "$DIR" "$OUT")" ] \
+    [[ -z "$(git status --porcelain -- "$DIR" "$OUT")" ]] \
         || die "uncommitted changes in $DIR/ or $OUT/ (an interrupted run?): commit them, or remove them with ./ceremony.sh clean"
 }
 
@@ -238,23 +239,23 @@ require_up_to_date() {
     git fetch --quiet origin "$DEFAULT_BRANCH" 2>/dev/null || { step "could not fetch origin/$DEFAULT_BRANCH; continuing with the local copy"; return 0; }
     local behind
     behind="$(git rev-list --count "HEAD..origin/$DEFAULT_BRANCH")"
-    [ "$behind" = "0" ] || die "you are $behind commit(s) behind origin/$DEFAULT_BRANCH: pull the latest ceremony state first"
+    [[ "$behind" = "0" ]] || die "you are $behind commit(s) behind origin/$DEFAULT_BRANCH: pull the latest ceremony state first"
 }
 
 # use_branch NAME switches to ceremony/NAME when on the default branch, so the
 # commits can go up as a pull request. On any other branch it stays put.
 use_branch() {
-    local current
+    local name="$1" current
     current="$(git branch --show-current)"
-    if [ "$current" = "$DEFAULT_BRANCH" ] || [ "$current" = "master" ]; then
-        git switch -q -c "ceremony/$1" || die "could not create branch ceremony/$1"
-        step "working on branch ceremony/$1"
+    if [[ "$current" = "$DEFAULT_BRANCH" ]] || [[ "$current" = "master" ]]; then
+        git switch -q -c "ceremony/$name" || die "could not create branch ceremony/$name"
+        step "working on branch ceremony/$name"
     fi
 }
 
 maybe_push() {
-    [ "$JOINING" = "1" ] && return 0
-    if [ "$PUSH" = "1" ]; then
+    [[ "$JOINING" = "1" ]] && return 0
+    if [[ "$PUSH" = "1" ]]; then
         git push -u origin HEAD
         step "pushed $(git branch --show-current); open a pull request into $DEFAULT_BRANCH"
     else
@@ -275,12 +276,12 @@ DRAND_GENESIS=""
 # drand_params loads the chain's period and genesis time once. Rounds are
 # published on a fixed schedule, so times can be computed locally afterwards.
 drand_params() {
-    [ -n "$DRAND_PERIOD" ] && return 0
+    [[ -n "$DRAND_PERIOD" ]] && return 0
     local info
     info="$(curl -sS --max-time 30 --retry 3 "$DRAND_API/$DRAND_CHAIN/info")" || die "could not reach drand at $DRAND_API"
     DRAND_PERIOD="$(echo "$info" | sed -n 's/.*"period":\([0-9]*\).*/\1/p')"
     DRAND_GENESIS="$(echo "$info" | sed -n 's/.*"genesis_time":\([0-9]*\).*/\1/p')"
-    [ -n "$DRAND_PERIOD" ] && [ -n "$DRAND_GENESIS" ] || die "unexpected drand info: $info"
+    [[ -n "$DRAND_PERIOD" ]] && [[ -n "$DRAND_GENESIS" ]] || die "unexpected drand info: $info"
 }
 
 # round_at_epoch T prints the first round published at or after unix time T.
@@ -324,7 +325,7 @@ drand_try() {
                 return 0 ;;
             425) return 1 ;;
         esac
-        [ "$attempt" -lt 4 ] && sleep $(( attempt * 5 ))
+        [[ "$attempt" -lt 4 ]] && sleep $(( attempt * 5 ))
     done
     echo "ceremony.sh: drand unavailable (HTTP $code) for round $round" >&2
     return 2
@@ -339,27 +340,27 @@ to_epoch() {
 # --- commands -------------------------------------------------------------
 
 cmd_round_at() {
-    [ $# -eq 1 ] || die 'usage: round-at "YYYY-MM-DD HH:MM UTC"'
+    [[ $# -eq 1 ]] || die 'usage: round-at "YYYY-MM-DD HH:MM UTC"'
     round_at_epoch "$(to_epoch "$1")"
 }
 
 cmd_init() {
     local ptau=""
-    while [ $# -gt 0 ]; do
+    while [[ $# -gt 0 ]]; do
         case "$1" in
             --ptau) ptau="$2"; shift 2 ;;
             --key) KEY="$2"; shift 2 ;;
             *) die "init: unknown option $1" ;;
         esac
     done
-    [ ! -e "$DIR/manifest.json" ] || die "a ceremony already exists in $DIR/"
+    [[ ! -e "$DIR/manifest.json" ]] || die "a ceremony already exists in $DIR/"
     require_key
 
-    if [ "$DEMO" = "1" ] && [ -z "$ptau" ]; then
+    if [[ "$DEMO" = "1" ]] && [[ -z "$ptau" ]]; then
         step "starting a DEMO ceremony with an insecure local phase 1"
         tool init --dir "$DIR"
     else
-        [ -n "$ptau" ] || ptau="$(fetch_ptau)"
+        [[ -n "$ptau" ]] || ptau="$(fetch_ptau)"
         step "starting the ceremony: importing phase 1 from $(basename "$ptau") (compiles every circuit)"
         tool init --dir "$DIR" --ptau "$ptau" --ptau-source "$PTAU_URL"
     fi
@@ -372,7 +373,7 @@ cmd_init() {
 
 cmd_register() {
     local name=""
-    while [ $# -gt 0 ]; do
+    while [[ $# -gt 0 ]]; do
         case "$1" in
             --name) name="$2"; shift 2 ;;
             --key) KEY="$2"; shift 2 ;;
@@ -386,15 +387,15 @@ cmd_register() {
     require_clean_ceremony
 
     local dest="$DIR/contributors/$name.pub"
-    if [ -f "$dest" ]; then
-        [ "$(key_body "$dest")" = "$(key_body "$KEY")" ] || die "$name is registered with a different key"
+    if [[ -f "$dest" ]]; then
+        [[ "$(key_body "$dest")" = "$(key_body "$KEY")" ]] || die "$name is registered with a different key"
         step "$name is already registered with this key"
         return
     fi
     local other
     for other in "$DIR"/contributors/*.pub; do
-        [ -f "$other" ] || continue
-        [ "$(key_body "$other")" != "$(key_body "$KEY")" ] \
+        [[ -f "$other" ]] || continue
+        [[ "$(key_body "$other")" != "$(key_body "$KEY")" ]] \
             || die "this key is already registered as $(basename "$other" .pub); each contributor needs its own key"
     done
     use_branch "register-$name"
@@ -406,7 +407,7 @@ cmd_register() {
 
 cmd_contribute() {
     local name="" note="" delay="$DEFAULT_DELAY"
-    while [ $# -gt 0 ]; do
+    while [[ $# -gt 0 ]]; do
         case "$1" in
             --name) name="$2"; shift 2 ;;
             --key) KEY="$2"; shift 2 ;;
@@ -418,15 +419,15 @@ cmd_contribute() {
         esac
     done
     [[ "$name" =~ $NAME_RE ]] || die "--name must be lowercase letters, digits and dashes (e.g. bank-a)"
-    [[ "$delay" =~ ^[0-9]+$ ]] && [ "$delay" -ge 3 ] || die "--beacon-delay must be a whole number of minutes, at least 3"
+    [[ "$delay" =~ ^[0-9]+$ ]] && [[ "$delay" -ge 3 ]] || die "--beacon-delay must be a whole number of minutes, at least 3"
     require_key
     require_ceremony
     require_clean_ceremony
     require_up_to_date
 
     local reg="$DIR/contributors/$name.pub"
-    [ -f "$reg" ] || die "$name is not registered: run ./ceremony.sh register --name $name first"
-    [ "$(key_body "$reg")" = "$(key_body "$KEY")" ] || die "$KEY is not the key registered for $name"
+    [[ -f "$reg" ]] || die "$name is not registered: run ./ceremony.sh register --name $name first"
+    [[ "$(key_body "$reg")" = "$(key_body "$KEY")" ]] || die "$KEY is not the key registered for $name"
 
     # Load drand's schedule now, in this shell, so the check after the
     # (long) contribution needs no network.
@@ -444,7 +445,7 @@ cmd_contribute() {
     hash="$(tool contribute --dir "$DIR" --name "$name" --jobs "$JOBS" --beacon-source "drand quicknet round $round" \
         | grep -E '^[0-9a-f]{64}$' | tail -n1)" || true
     trap - INT TERM
-    if [ -z "$hash" ]; then
+    if [[ -z "$hash" ]]; then
         discard_uncommitted
         die "the contribution failed; nothing was committed"
     fi
@@ -452,7 +453,7 @@ cmd_contribute() {
     # The beacon must still be unknown now that the contribution is fixed.
     # Rounds follow a fixed schedule, so check the clock (with a 2-minute
     # margin) instead of relying on reaching drand.
-    if [ "$(date -u +%s)" -ge $(( $(round_epoch "$round") - 120 )) ]; then
+    if [[ "$(date -u +%s)" -ge $(( $(round_epoch "$round") - 120 )) ]]; then
         discard_uncommitted
         die "drand round $round is published at $(round_time "$round"), before or too close to the end of the contribution (did the machine sleep?). It was discarded; rerun with a larger --beacon-delay"
     fi
@@ -499,7 +500,7 @@ EOF
 
 cmd_finalize() {
     local wait=0
-    while [ $# -gt 0 ]; do
+    while [[ $# -gt 0 ]]; do
         case "$1" in
             --wait) wait=1; shift ;;
             --jobs) JOBS="$2"; shift 2 ;;
@@ -511,22 +512,22 @@ cmd_finalize() {
     require_key
     require_ceremony
     require_clean_ceremony
-    [ "$(info pending)" = "1" ] || die "no contributions since the last release"
+    [[ "$(info pending)" = "1" ]] || die "no contributions since the last release"
 
     drand_params
     local round value version
     round="$(round_from_source "$(info pending_beacon)")"
-    [ -n "$round" ] || die "the announced beacon is not a drand quicknet round"
+    [[ -n "$round" ]] || die "the announced beacon is not a drand quicknet round"
     local rc
     while true; do
         rc=0
         value="$(drand_try "$round")" || rc=$?
-        [ "$rc" = "0" ] && break
-        if [ "$wait" != "1" ]; then
-            [ "$rc" = "1" ] && die "drand round $round is published at $(round_time "$round"); try again then, or pass --wait"
+        [[ "$rc" = "0" ]] && break
+        if [[ "$wait" != "1" ]]; then
+            [[ "$rc" = "1" ]] && die "drand round $round is published at $(round_time "$round"); try again then, or pass --wait"
             die "could not reach drand; try again later"
         fi
-        if [ "$rc" = "1" ]; then
+        if [[ "$rc" = "1" ]]; then
             step "waiting for drand round $round ($(round_time "$round"))..."
         else
             step "drand unreachable; retrying..."
@@ -541,7 +542,7 @@ cmd_finalize() {
         discard_uncommitted
         die "finalize failed; nothing was released"
     fi
-    if [ "$DEMO" = "0" ]; then
+    if [[ "$DEMO" = "0" ]]; then
         step "converting the Solidity verifiers"
         SKIP_CONTRACTS_COPY=1 ./convert_verifiers.sh >/dev/null
     fi
@@ -553,7 +554,7 @@ cmd_finalize() {
 
 cmd_verify() {
     local use_ptau=1
-    while [ $# -gt 0 ]; do
+    while [[ $# -gt 0 ]]; do
         case "$1" in
             --no-ptau) use_ptau=0; shift ;;
             --jobs) JOBS="$2"; shift 2 ;;
@@ -563,8 +564,8 @@ cmd_verify() {
     require_ceremony
 
     local args=(--dir "$DIR" --jobs "$JOBS")
-    [ "$(info latest_release)" != "0" ] && args+=(--out "$OUT")
-    if [ "$use_ptau" = "1" ] && [ "$(info phase1_source)" != "insecure-demo" ]; then
+    [[ "$(info latest_release)" != "0" ]] && args+=(--out "$OUT")
+    if [[ "$use_ptau" = "1" ]] && [[ "$(info phase1_source)" != "insecure-demo" ]]; then
         args+=(--ptau "$(fetch_ptau)")
     fi
     step "replaying the transcript"
@@ -573,13 +574,13 @@ cmd_verify() {
     step "checking release beacons against drand"
     local version count source value round
     while IFS=$'\t' read -r version count source value; do
-        [ -n "$version" ] || continue
+        [[ -n "$version" ]] || continue
         round="$(round_from_source "$source")"
-        [ -n "$round" ] || die "release v$version beacon is not a drand quicknet round"
+        [[ -n "$round" ]] || die "release v$version beacon is not a drand quicknet round"
         local got rc=0
         got="$(drand_try "$round")" || rc=$?
-        [ "$rc" != "2" ] || die "could not reach drand to check release v$version's beacon; try again later"
-        [ "$rc" = "0" ] && [ "$got" = "$value" ] || die "release v$version beacon does not match drand round $round"
+        [[ "$rc" != "2" ]] || die "could not reach drand to check release v$version's beacon; try again later"
+        [[ "$rc" = "0" ]] && [[ "$got" = "$value" ]] || die "release v$version beacon does not match drand round $round"
         echo "v$version: drand quicknet round $round matches"
     done < <(tool releases --dir "$DIR" 2>/dev/null | awk -F'\t' 'NF == 4')
 
@@ -587,12 +588,12 @@ cmd_verify() {
     local signers="$DIR/contributors/allowed_signers" index name path hash beacon commit att own
     own="$TOOL_DIR/allowed_signers.one"
     while IFS=$'\t' read -r index name path hash beacon; do
-        [ -n "$index" ] || continue
+        [[ -n "$index" ]] || continue
         att="$DIR/attestations/$(printf '%04d-%s' "$index" "$name").md"
-        [ -f "$att" ] || die "contribution $index by $name has no attestation"
+        [[ -f "$att" ]] || die "contribution $index by $name has no attestation"
         grep -q "$hash" "$att" || die "attestation for contribution $index does not record hash $hash"
         commit="$(git log --diff-filter=A --format=%H -1 -- "$DIR/$path")"
-        if [ -z "$commit" ]; then
+        if [[ -z "$commit" ]]; then
             echo "#$index $name: not committed yet"
             continue
         fi
@@ -611,7 +612,7 @@ cmd_verify() {
 cmd_join() {
     local name="" note="" delay="$DEFAULT_DELAY" contracts="" pre_verify=1 finalize=1
     local orig_args=("$@")
-    while [ $# -gt 0 ]; do
+    while [[ $# -gt 0 ]]; do
         case "$1" in
             --name) name="$2"; shift 2 ;;
             --key) KEY="$2"; shift 2 ;;
@@ -626,13 +627,13 @@ cmd_join() {
         esac
     done
     [[ "$name" =~ $NAME_RE ]] || die "--name must be lowercase letters, digits and dashes (e.g. bank-a)"
-    [[ "$delay" =~ ^[0-9]+$ ]] && [ "$delay" -ge 3 ] || die "--beacon-delay must be a whole number of minutes, at least 3"
+    [[ "$delay" =~ ^[0-9]+$ ]] && [[ "$delay" -ge 3 ]] || die "--beacon-delay must be a whole number of minutes, at least 3"
     require_key
-    if [ "$DEMO" = "0" ]; then
+    if [[ "$DEMO" = "0" ]]; then
         command -v git-lfs >/dev/null || die "Git LFS is not installed (https://git-lfs.com)"
     fi
-    if [ -n "$contracts" ] && [ "$finalize" = "1" ]; then
-        [ "$DEMO" = "0" ] || die "--contracts is not for demo mode"
+    if [[ -n "$contracts" ]] && [[ "$finalize" = "1" ]]; then
+        [[ "$DEMO" = "0" ]] || die "--contracts is not for demo mode"
         prepare_contracts "$contracts"
     fi
 
@@ -642,11 +643,11 @@ cmd_join() {
     before="$(git hash-object ceremony.sh)"
     pull_repo "$ROOT"
     # The pull may have updated this script: run the new version instead.
-    if [ "$(git hash-object ceremony.sh)" != "$before" ] && [ -z "${CEREMONY_RESTARTED:-}" ]; then
+    if [[ "$(git hash-object ceremony.sh)" != "$before" ]] && [[ -z "${CEREMONY_RESTARTED:-}" ]]; then
         step "ceremony.sh was updated by the pull; restarting it"
         CEREMONY_RESTARTED=1 exec ./ceremony.sh join "${orig_args[@]}"
     fi
-    if [ "$DEMO" = "0" ]; then
+    if [[ "$DEMO" = "0" ]]; then
         step "fetching the ceremony files from Git LFS"
         git lfs pull || die "git lfs pull failed"
     fi
@@ -658,7 +659,7 @@ cmd_join() {
     JOINING=1
     use_branch "join-$name"
 
-    if [ "$pre_verify" = "1" ]; then
+    if [[ "$pre_verify" = "1" ]]; then
         step "step 1/5: verifying everything done so far"
         cmd_verify --jobs "$JOBS"
     else
@@ -670,17 +671,17 @@ cmd_join() {
 
     step "step 3/5: contributing"
     local args=(--name "$name" --beacon-delay "$delay" --jobs "$JOBS")
-    [ -n "$note" ] && args+=(--note "$note")
+    [[ -n "$note" ]] && args+=(--note "$note")
     cmd_contribute "${args[@]}"
 
-    if [ "$finalize" = "1" ]; then
+    if [[ "$finalize" = "1" ]]; then
         step "step 4/5: releasing keys (waits for the announced drand round)"
         cmd_finalize --wait --jobs "$JOBS"
     else
         step "step 4/5: release skipped; anyone can run ./ceremony.sh finalize --wait later"
     fi
 
-    if [ "$finalize" = "1" ] && [ -n "$contracts" ]; then
+    if [[ "$finalize" = "1" ]] && [[ -n "$contracts" ]]; then
         step "step 5/5: copying and committing the verifiers in $contracts"
         cmd_copy_verifiers --contracts "$contracts"
     else
@@ -693,7 +694,7 @@ cmd_join() {
 }
 
 cmd_clean() {
-    if [ -z "$(git status --porcelain -- "$DIR" "$OUT")" ]; then
+    if [[ -z "$(git status --porcelain -- "$DIR" "$OUT")" ]]; then
         step "nothing to clean in $DIR/ or $OUT/"
         return
     fi
@@ -705,49 +706,50 @@ cmd_clean() {
 # contracts_verifier_dir DIR prints where the verifiers live in the contracts
 # repository at DIR, or fails if DIR does not look like it.
 contracts_verifier_dir() {
-    local base="$1/src/rayls-protocol/Enygma"
-    [ -d "$base/Enygma-DVP" ] && [ -d "$base/Enygma-Payments" ] || die "$1 does not look like rayls-sovereign-contracts (pass --contracts DIR)"
+    local repo="$1"
+    local base="$repo/src/rayls-protocol/Enygma"
+    [[ -d "$base/Enygma-DVP" && -d "$base/Enygma-Payments" ]] || die "$repo does not look like rayls-sovereign-contracts (pass --contracts DIR)"
     echo "$base"
 }
 
 # prepare_contracts DIR fails early if the contracts repository at DIR is
 # missing or has uncommitted verifier changes, and pulls it.
 prepare_contracts() {
-    local base
-    base="$(contracts_verifier_dir "$1")"
-    [ -z "$(git -C "$1" status --porcelain -- "$base")" ] \
+    local repo="$1" base
+    base="$(contracts_verifier_dir "$repo")"
+    [[ -z "$(git -C "$repo" status --porcelain -- "$base")" ]] \
         || die "uncommitted changes under $base: commit or discard them first"
-    pull_repo "$1"
+    pull_repo "$repo"
 }
 
 # pull_repo DIR fast-forwards the git repository at DIR from its upstream.
 pull_repo() {
-    local branch
-    branch="$(git -C "$1" branch --show-current)"
-    if ! git -C "$1" rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1; then
-        step "$1: branch $branch has no upstream; not pulling"
+    local repo="$1" branch
+    branch="$(git -C "$repo" branch --show-current)"
+    if ! git -C "$repo" rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1; then
+        step "$repo: branch $branch has no upstream; not pulling"
         return 0
     fi
-    step "$1: pulling $branch"
-    git -C "$1" pull --ff-only --quiet || die "git pull failed in $1 (local commits or conflicts?)"
+    step "$repo: pulling $branch"
+    git -C "$repo" pull --ff-only --quiet || die "git pull failed in $repo (local commits or conflicts?)"
 }
 
 cmd_copy_verifiers() {
     local contracts="$ROOT/../rayls-sovereign-contracts"
-    while [ $# -gt 0 ]; do
+    while [[ $# -gt 0 ]]; do
         case "$1" in
             --contracts) contracts="$2"; shift 2 ;;
             --push) PUSH=1; shift ;;
             *) die "copy-verifiers: unknown option $1" ;;
         esac
     done
-    [ "$DEMO" = "0" ] || die "demo verifiers are not for the contracts repository"
+    [[ "$DEMO" = "0" ]] || die "demo verifiers are not for the contracts repository"
     local version
     version="$(info latest_release)"
-    [ "$version" != "0" ] || die "there is no release yet: run ./ceremony.sh finalize first"
+    [[ "$version" != "0" ]] || die "there is no release yet: run ./ceremony.sh finalize first"
     local base f name dest n=0
     base="$(contracts_verifier_dir "$contracts")"
-    [ -z "$(git -C "$contracts" status --porcelain -- "$base")" ] \
+    [[ -z "$(git -C "$contracts" status --porcelain -- "$base")" ]] \
         || die "uncommitted changes under $base: commit or discard them first"
     contracts_use_branch "$contracts" "$version"
     for f in "$OUT"/*Verifier*.sol; do
@@ -760,7 +762,7 @@ cmd_copy_verifiers() {
         cp "$f" "$dest/$name"
         n=$((n + 1))
     done
-    [ "$n" -gt 0 ] || die "no verifiers found in $OUT/"
+    [[ "$n" -gt 0 ]] || die "no verifiers found in $OUT/"
     step "copied $n verifiers into $contracts (release v$version)"
     commit_contracts "$contracts" "$base" "$version"
 }
@@ -771,11 +773,11 @@ cmd_copy_verifiers() {
 contracts_use_branch() {
     local contracts="$1" branch
     branch="$(git branch --show-current)"
-    [ -n "$branch" ] || die "this repository is not on a branch (detached HEAD)"
-    if [ "$branch" = "$DEFAULT_BRANCH" ] || [ "$branch" = "master" ]; then
+    [[ -n "$branch" ]] || die "this repository is not on a branch (detached HEAD)"
+    if [[ "$branch" = "$DEFAULT_BRANCH" ]] || [[ "$branch" = "master" ]]; then
         branch="ceremony/release-v$2"
     fi
-    [ "$(git -C "$contracts" branch --show-current)" != "$branch" ] || return 0
+    [[ "$(git -C "$contracts" branch --show-current)" != "$branch" ]] || return 0
     if git -C "$contracts" rev-parse -q --verify "refs/heads/$branch" >/dev/null \
         || git -C "$contracts" rev-parse -q --verify "refs/remotes/origin/$branch" >/dev/null; then
         git -C "$contracts" switch -q "$branch" || die "could not switch $contracts to branch $branch"
@@ -802,7 +804,7 @@ Release v$version of the phase 2 ceremony in rayls-sovereign-gnark-api
 Only the verifying-key constants change.
 EOF
     step "$contracts: committed the release v$version verifiers"
-    if [ "$PUSH" = "1" ]; then
+    if [[ "$PUSH" = "1" ]]; then
         git -C "$contracts" push -u origin HEAD || die "push failed in $contracts"
         step "$contracts: pushed $(git -C "$contracts" branch --show-current); open a pull request into $DEFAULT_BRANCH"
     else
@@ -816,7 +818,7 @@ KEY="$(default_key || true)"
 PUSH=0
 JOINING=0
 cmd="${1:-help}"
-[ $# -gt 0 ] && shift
+[[ $# -gt 0 ]] && shift
 case "$cmd" in
     # join builds it itself, after pulling.
     init|register|contribute|finalize|verify|status|copy-verifiers) build_tool ;;

@@ -2,6 +2,7 @@ package enygma_joinsplit
 
 import (
 	"fmt"
+	"github.com/raylsnetwork/rayls-sovereign-gnark-api/pkg/logsafe"
 	primitives "github.com/raylsnetwork/rayls-sovereign-gnark-api/primitives"
 	"math/big"
 	"net/http"
@@ -112,7 +113,7 @@ func NewHandler(pkPath, vkPath, r1csPath string) gin.HandlerFunc {
 		bindTime := time.Since(totalStart)
 
 		if err := validateEnygmaInputs(&request); err != nil {
-			fmt.Printf("Input validation failed: %v\n", err)
+			fmt.Printf("Input validation failed: %s\n", logsafe.Err(err))
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": "Input validation failed: " + err.Error(),
 			})

@@ -18,7 +18,7 @@ convert_verifier() {
     local output_file="$2"
     local temp_file=$(mktemp)
     
-    if [ ! -f "$input_file" ]; then
+    if [[ ! -f "$input_file" ]]; then
         echo "Error: Input file $input_file not found"
         return 1
     fi
@@ -257,12 +257,12 @@ convert_verifier() {
             fi
             
             # SKIP_CONTRACTS_COPY=1 leaves the verifiers in last_build/ only.
-            if [ -n "${SKIP_CONTRACTS_COPY:-}" ]; then
+            if [[ -n "${SKIP_CONTRACTS_COPY:-}" ]]; then
                 echo "  SKIP_CONTRACTS_COPY set: not copying to $target_dir"
             else
             echo "Moving converted file to target directory..."
             # Create target directory if it doesn't exist
-            if [ ! -d "$target_dir" ]; then
+            if [[ ! -d "$target_dir" ]]; then
                 echo "  Creating directory: $target_dir"
                 mkdir -p "$target_dir"
             fi
@@ -294,10 +294,10 @@ convert_verifier() {
             
             # Create target directory if it doesn't exist
             # SKIP_CONTRACTS_COPY=1 leaves the verifiers in last_build/ only.
-            if [ -n "${SKIP_CONTRACTS_COPY:-}" ]; then
+            if [[ -n "${SKIP_CONTRACTS_COPY:-}" ]]; then
                 echo "  SKIP_CONTRACTS_COPY set: not copying to $target_dir"
             else
-            if [ ! -d "$target_dir" ]; then
+            if [[ ! -d "$target_dir" ]]; then
                 echo "  Creating directory: $target_dir"
                 mkdir -p "$target_dir"
             fi
@@ -323,7 +323,7 @@ find_and_convert_verifiers() {
     echo "Searching for Verifier contracts that need conversion..."
     
     for path in "${search_paths[@]}"; do
-        if [ -d "$path" ]; then
+        if [[ -d "$path" ]]; then
             echo "Checking directory: $path"
             # Look for Solidity files containing "contract Verifier" - avoid duplicates
             local files_in_dir=()
@@ -334,7 +334,7 @@ find_and_convert_verifiers() {
             done < <(find "$path" -maxdepth 1 -name "*.sol" ! -name "*_raw.sol" -type f 2>/dev/null | sort -u)
             
             for file in "${files_in_dir[@]}"; do
-                if [ -f "$file" ] && grep -l "contract Verifier" "$file" >/dev/null 2>&1; then
+                if [[ -f "$file" ]] && grep -l "contract Verifier" "$file" >/dev/null 2>&1; then
                     echo "Found Verifier contract: $file"
                     
                     # Check if it has the new function signature (handle multi-line signatures)
@@ -350,7 +350,7 @@ find_and_convert_verifiers() {
                         has_old_sig=true
                     fi
                     
-                    if [ "$has_new_sig" = true ] && [ "$has_old_sig" = false ]; then
+                    if [[ "$has_new_sig" = true ]] && [[ "$has_old_sig" = false ]]; then
                         echo "  -> Has new signature, will convert"
                         found_files+=("$file")
                         processed_files+=("$abs_file")
@@ -366,7 +366,7 @@ find_and_convert_verifiers() {
         fi
     done
     
-    if [ ${#found_files[@]} -eq 0 ]; then
+    if [[ ${#found_files[@]} -eq 0 ]]; then
         echo "No Verifier contracts with new signature found automatically."
         echo "Please run with specific file paths:"
         echo "Usage: $0 <input_file> <output_file>"
@@ -420,7 +420,7 @@ needs_conversion() {
             has_old_sig=true
         fi
         
-        if [ "$has_new_sig" = true ] && [ "$has_old_sig" = false ]; then
+        if [[ "$has_new_sig" = true ]] && [[ "$has_old_sig" = false ]]; then
             echo "  -> File needs conversion (has contract Verifier with new signature, missing old signature)"
             return 0  # needs conversion
         else
@@ -444,16 +444,16 @@ case $# in
         find_and_convert_verifiers
         ;;
     1)
-        if [ "$1" = "debug" ]; then
+        if [[ "$1" = "debug" ]]; then
             # Debug mode - show what's in the files
             echo "=== DEBUG MODE ==="
             for path in "./last_build" "./contracts" "./src" "./generated" "."; do
-                if [ -d "$path" ]; then
+                if [[ -d "$path" ]]; then
                     echo ""
                     echo "=== Files in $path ==="
                     find "$path" -name "*.sol" 2>/dev/null | while read file; do
                         echo "File: $file"
-                        if [ -f "$file" ]; then
+                        if [[ -f "$file" ]]; then
                             echo "  Contract names:"
                             grep "^contract " "$file" || echo "    No contracts found"
                             echo "  VerifyProof functions:"
@@ -472,7 +472,7 @@ case $# in
                                     has_old_sig=true
                                 fi
                                 
-                                if [ "$has_new_sig" = true ] && [ "$has_old_sig" = false ]; then
+                                if [[ "$has_new_sig" = true ]] && [[ "$has_old_sig" = false ]]; then
                                     echo "    YES - has contract Verifier with new signature"
                                 else
                                     echo "    NO - has_new_sig=$has_new_sig, has_old_sig=$has_old_sig"
@@ -491,8 +491,8 @@ case $# in
         else
             # Single file - convert in place with backup
             input_file="$1"
-            if [ ! -f "$input_file" ]; then
-                echo "Error: Input file '$input_file' does not exist"
+            if [[ ! -f "$input_file" ]]; then
+                echo "Error: Input file '$input_file' does not exist" >&2
                 exit 1
             fi
             
@@ -508,7 +508,7 @@ case $# in
         ;;
     2)
         # Manual file specification
-        if [ ! -f "$1" ]; then
+        if [[ ! -f "$1" ]]; then
             echo "Error: Input file '$1' does not exist"
             exit 1
         fi
