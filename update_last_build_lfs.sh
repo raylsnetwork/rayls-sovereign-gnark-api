@@ -46,8 +46,8 @@ install_git_lfs() {
 }
 
 # Check prerequisites
-[ ! -d ".git" ] && echo "Not in a Git repository" && exit 1
-[ ! -d "last_build" ] && echo "last_build not found" && exit 1
+[[ ! -d ".git" ]] && echo "Not in a Git repository" >&2 && exit 1
+[[ ! -d "last_build" ]] && echo "last_build not found" >&2 && exit 1
 
 # Check and install Git LFS if needed
 if ! command -v git-lfs > /dev/null 2>&1; then
@@ -56,7 +56,7 @@ fi
 
 # Pass --push to also push the commit and its LFS objects.
 PUSH=false
-[ "${1:-}" = "--push" ] && PUSH=true
+[[ "${1:-}" = "--push" ]] && PUSH=true
 
 # Stage and commit only last_build/: a pathspec commit leaves any other
 # staged changes out of the artifacts commit.

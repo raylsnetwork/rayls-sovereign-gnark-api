@@ -21,7 +21,7 @@ case "${1:-}" in
     *) echo "Usage: $0 [--force]" >&2; exit 1 ;;
 esac
 
-if [ -z "${SKIP_KEYGEN:-}" ]; then
+if [[ -z "${SKIP_KEYGEN:-}" ]]; then
     go run ./cmd/setup/setup_keys_verifiers $force
 fi
 exec ./convert_verifiers.sh

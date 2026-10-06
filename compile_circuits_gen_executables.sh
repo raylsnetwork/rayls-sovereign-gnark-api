@@ -46,7 +46,7 @@ install_git_lfs() {
 }
 
 # Check prerequisites
-[ ! -d ".git" ] && echo "Not in a Git repository" && exit 1
+[[ ! -d ".git" ]] && echo "Not in a Git repository" >&2 && exit 1
 
 # Check and install Git LFS if needed
 if ! command -v git-lfs > /dev/null 2>&1; then
@@ -74,7 +74,7 @@ echo "$H_OUTPUT"
 NEW_HX=$(echo "$H_OUTPUT" | grep '^Hx = ' | sed 's/Hx = "\(.*\)"/\1/')
 NEW_HY=$(echo "$H_OUTPUT" | grep '^Hy = ' | sed 's/Hy = "\(.*\)"/\1/')
 
-if [ -z "$NEW_HX" ] || [ -z "$NEW_HY" ]; then
+if [[ -z "$NEW_HX" ]] || [[ -z "$NEW_HY" ]]; then
     echo ""
     echo "⚠️  Warning: Could not extract H parameter values from output"
     echo "   Skipping GroupMath.go update"
@@ -118,7 +118,7 @@ echo "========================================"
 # Create executables directory if it doesn't exist
 EXECUTABLES_DIR="last_build/executables"
 echo "📁 Creating executables directory: $EXECUTABLES_DIR"
-if [ ! -d "$EXECUTABLES_DIR" ]; then
+if [[ ! -d "$EXECUTABLES_DIR" ]]; then
     mkdir -p "$EXECUTABLES_DIR"
     echo "✓ Directory created: $EXECUTABLES_DIR"
 else
@@ -142,7 +142,7 @@ if CGO_ENABLED=1 go build -ldflags="-s -w" -o "$SERVER_PATH" ./cmd/server/main.g
     BUILD_TIME=$((BUILD_END - BUILD_START))
     
     # Check if the binary was actually created
-    if [ -f "$SERVER_PATH" ]; then
+    if [[ -f "$SERVER_PATH" ]]; then
         # Get file info
         SERVER_SIZE=$(du -h "$SERVER_PATH" | cut -f1)
         SERVER_PERMISSIONS=$(ls -l "$SERVER_PATH" | cut -d' ' -f1)
