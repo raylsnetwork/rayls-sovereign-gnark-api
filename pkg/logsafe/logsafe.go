@@ -34,7 +34,7 @@ func String(s string) string {
 }
 
 func needsEscape(r rune) bool {
-	return r != '\t' && (unicode.IsControl(r) || r == ' ' || r == ' ')
+	return r != '\t' && (unicode.IsControl(r) || r == '\u2028' || r == '\u2029')
 }
 
 // Err returns err's message made safe for logging, or "<nil>" for a nil error.
