@@ -1,8 +1,6 @@
 package deposit
 
 import (
-	"fmt"
-
 	common "github.com/raylsnetwork/rayls-sovereign-gnark-api/pkg/circuits/enygma/enygma-payments/common"
 	pos "github.com/raylsnetwork/rayls-sovereign-gnark-api/poseidon"
 	primitives "github.com/raylsnetwork/rayls-sovereign-gnark-api/primitives"
@@ -36,9 +34,6 @@ func circuitLogic(
 	saltOut frontend.Variable,
 ) error {
 
-	// Subgroup order
-	JubJubPrimeSubGroup := frontend.Variable(primitives.JubJubPrimeSubGroup)
-
 	//////////////////////////////////**///////////////////////////////////
 	// Check if SenderId is in K
 	common.CheckSenderIdIsInK(api, k, senderId, anonymity_set)
@@ -47,26 +42,10 @@ func circuitLogic(
 	// Check if Negative of Amount To Deposit Corresponds To Sender TxValues
 	selected_v := frontend.Variable(0)
 	for i := 0; i < k; i++ {
-		diff := api.Sub(senderId, anonymity_set[i])
-		eq := api.IsZero(diff)
+		eq := api.IsZero(api.Sub(senderId, anonymity_set[i]))
 		selected_v = api.Add(selected_v, api.Mul(eq, txValue[i]))
 	}
-	selectedVBits := api.ToBinary(selected_v, 252)
-	vBits := api.ToBinary(sender_tx_value, 252)
-	pDiffBits := api.ToBinary(JubJubPrimeSubGroup, 252)
-
-	selectedVConstrained := api.FromBinary(selectedVBits...)
-	vConstrained := api.FromBinary(vBits...)
-	pDiffConstrained := api.FromBinary(pDiffBits...)
-
-	// Compute (p - sender_tx_value) mod p to handle sender_tx_value=0 case correctly
-	expectedTxValue := api.Sub(pDiffConstrained, vConstrained)
-	expectedTxValueMod, err := primitives.ModSubgroup(api, expectedTxValue)
-	if err != nil {
-		return fmt.Errorf("sender tx value: %w", err)
-	}
-
-	api.AssertIsEqual(selectedVConstrained, expectedTxValueMod)
+	common.CheckNegatedSenderValue(api, selected_v, sender_tx_value)
 
 	///////////////////////////////////**///////////////////////////////////
 	// Check if previous commits and tx commits are on Curve
@@ -95,20 +74,11 @@ func circuitLogic(
 	common.CheckPreviousCommitmentKnowledge(api, k, senderId, anonymity_set, previousCommit, previousV, previousR)
 
 	///////////////////////////////////**///////////////////////////////////
-	// Check Pedersen (Sum SenderTxValue, SumR) = Pedersen (Sender TxValues, 0)
-	sumX := frontend.Variable(0)
-	sumY := frontend.Variable(0)
-	senderV := frontend.Variable(0)
-
-	for i := 0; i < k; i++ {
-		sumX = api.Add(sumX, txValue[i])
-		sumY = api.Add(sumY, txRandom[i])
-		senderV = selected_v
-	}
-	PedersenObtained := primitives.PedersenCommitment(api, sumX, sumY)
-	PedersenExpected := primitives.PedersenCommitment(api, senderV, frontend.Variable(0))
-	api.AssertIsEqual(PedersenObtained.X, PedersenExpected.X)
-	api.AssertIsEqual(PedersenObtained.Y, PedersenExpected.Y)
+	// Check Sum TxCommits = Pedersen(Sender TxValue, 0)
+	sum := common.SumTxCommits(api, txCommit)
+	expected := primitives.PedersenCommitment(api, selected_v, 0)
+	api.AssertIsEqual(sum.X, expected.X)
+	api.AssertIsEqual(sum.Y, expected.Y)
 
 	///////////////////////////////////**///////////////////////////////////
 	// Range Proof: previousV >= sender_tx_value and sender_tx_value >= 0

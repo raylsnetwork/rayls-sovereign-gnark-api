@@ -7,6 +7,7 @@ import (
 	primitives "github.com/raylsnetwork/rayls-sovereign-gnark-api/primitives"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/native/twistededwards"
 )
 
 // CheckSenderIdIsInK verifies that the sender ID is present in the k-anonymity set
@@ -100,22 +101,16 @@ func CheckPreviousCommitmentKnowledge(api frontend.API, k int, senderId frontend
 	api.AssertIsEqual(selectedPreviousCommitmentY, computedPreviousCommitment.Y)
 }
 
-// MaxAmountBits bounds every balance and amount. Pedersen values are only
-// defined mod the subgroup order l (~2^251), so without a bound well below l a
-// balance B can be opened as B + l, and a "negative" amount l - x passes as
-// positive. With k <= 6 values below 2^128, no sum can wrap mod l.
-const MaxAmountBits = 128
-
 // CheckRangeProofWithPreviousV verifies 0 <= sender_tx_value <= previousV < 2^MaxAmountBits
 func CheckRangeProofWithPreviousV(api frontend.API, previousV frontend.Variable, sender_tx_value frontend.Variable) {
-	api.ToBinary(previousV, MaxAmountBits)
-	api.ToBinary(sender_tx_value, MaxAmountBits)
-	api.AssertIsLessOrEqual(sender_tx_value, previousV)
+	primitives.AssertIsAmount(api, previousV)
+	primitives.AssertIsAmount(api, sender_tx_value)
+	primitives.AssertIsAmount(api, api.Sub(previousV, sender_tx_value))
 }
 
 // CheckRangeProofVOnly verifies 0 <= sender_tx_value < 2^MaxAmountBits (for withdraw)
 func CheckRangeProofVOnly(api frontend.API, sender_tx_value frontend.Variable) {
-	api.ToBinary(sender_tx_value, MaxAmountBits)
+	primitives.AssertIsAmount(api, sender_tx_value)
 }
 
 // CheckReceiverAmounts verifies 0 <= txValue[i] < 2^MaxAmountBits for every
@@ -125,8 +120,28 @@ func CheckRangeProofVOnly(api frontend.API, sender_tx_value frontend.Variable) {
 func CheckReceiverAmounts(api frontend.API, k int, senderId frontend.Variable, anonymity_set []frontend.Variable, txValue []frontend.Variable) {
 	for i := 0; i < k; i++ {
 		isReceiver := api.Sub(1, api.IsZero(api.Sub(anonymity_set[i], senderId)))
-		api.ToBinary(api.Mul(isReceiver, txValue[i]), MaxAmountBits)
+		primitives.AssertIsAmount(api, api.Mul(isReceiver, txValue[i]))
 	}
+}
+
+// CheckNegatedSenderValue verifies that selectedV, the sender's tx value, is
+// -senderTxValue mod l: l - senderTxValue, or 0 when senderTxValue is 0. It
+// relies on the caller bounding senderTxValue below 2^MaxAmountBits.
+func CheckNegatedSenderValue(api frontend.API, selectedV frontend.Variable, senderTxValue frontend.Variable) {
+	isZero := api.IsZero(senderTxValue)
+	negated := api.Mul(api.Sub(primitives.JubJubPrimeSubGroup, senderTxValue), api.Sub(1, isZero))
+	api.AssertIsEqual(selectedV, negated)
+}
+
+// SumTxCommits returns the sum of the tx commitments. Since every commitment is
+// checked to be Pedersen(txValue[i], txRandom[i]), and neither the values nor the
+// random factors can sum past p, it equals Pedersen(sum txValue, sum txRandom).
+func SumTxCommits(api frontend.API, txCommit [][2]frontend.Variable) twistededwards.Point {
+	sum := twistededwards.Point{X: txCommit[0][0], Y: txCommit[0][1]}
+	for _, c := range txCommit[1:] {
+		sum = primitives.PointAdd(api, sum, twistededwards.Point{X: c[0], Y: c[1]})
+	}
+	return sum
 }
 
 // CheckNullifierKnowledge verifies knowledge of nullifier = Poseidon(selectedPreImage, blockNumber)

@@ -89,5 +89,16 @@ func TestDepositRejectsAttacks(t *testing.T) {
 				return a
 			},
 		},
+		{
+			// The sender's tx commitment debits 1 while the DvP note holds 30.
+			Name: "debit smaller than the DvP note",
+			Build: func(t *testing.T) *DepositEnygmak3Circuit {
+				f := deposit(t, 100, 30)
+				values := make([]*big.Int, k3)
+				values[senderIdx] = paytest.Neg(big.NewInt(1))
+				f.SetTxValues(values...)
+				return assign(t, f)
+			},
+		},
 	})
 }

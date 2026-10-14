@@ -5,6 +5,7 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/native/twistededwards"
+	"github.com/consensys/gnark/std/math/bits"
 	"github.com/iden3/go-iden3-crypto/babyjub"
 )
 
@@ -39,92 +40,75 @@ var (
 	JubJubPrimeSubGroup, _ = new(big.Int).SetString("2736030358979909402780800718157159386076813972158567259200215660948447373041", 10)  //sub group prime in babyjubjub is 2736030358979909402780800718157159386076813972158567259200215660948447373041, a 251 bit number
 )
 
+// PointAdd adds two points with the complete twisted Edwards law (a is a square
+// and d is not, so the denominators never vanish for points on the curve).
+// Both inputs must be on the curve.
 func PointAdd(api frontend.API, p1, p2 twistededwards.Point) twistededwards.Point {
-	x1y2 := api.Mul(p1.X, p2.Y)
-	y1x2 := api.Mul(p1.Y, p2.X)
-	x1x2 := api.Mul(p1.X, p2.X)
-	y1y2 := api.Mul(p1.Y, p2.Y)
+	v0 := api.Mul(p1.X, p2.Y)
+	v1 := api.Mul(p2.X, p1.Y)
+	u := api.Mul(api.Sub(p1.Y, api.Mul(A, p1.X)), api.Add(p2.X, p2.Y))
+	v2 := api.Mul(D, v0, v1)
 
-	denomX := api.Add(api.Mul(D, api.Mul(x1x2, y1y2)), frontend.Variable(1))
-	denomY := api.Sub(frontend.Variable(1), api.Mul(D, api.Mul(x1x2, y1y2)))
-
-	// Ensure denominators are non-zero.
-	api.AssertIsDifferent(denomX, frontend.Variable(0))
-	api.AssertIsDifferent(denomY, frontend.Variable(0))
-
-	numerX := api.Add(x1y2, y1x2)
-	numerY := api.Sub(y1y2, api.Mul(A, x1x2))
-
-	invDenomX := api.Inverse(denomX)
-	invDenomY := api.Inverse(denomY)
-
-	x := api.Mul(numerX, invDenomX)
-	y := api.Mul(numerY, invDenomY)
-
-	return twistededwards.Point{X: x, Y: y}
-}
-
-// pointDouble doubles a point by simply adding it to itself.
-func PointDouble(api frontend.API, p twistededwards.Point) twistededwards.Point {
-	return PointAdd(api, p, p)
-}
-
-// pointSelect conditionally selects one of two points based on a boolean condition.
-func PointSelect(api frontend.API, cond frontend.Variable, p0, p1 twistededwards.Point) twistededwards.Point {
 	return twistededwards.Point{
-		X: api.Select(cond, p1.X, p0.X),
-		Y: api.Select(cond, p1.Y, p0.Y),
+		X: api.DivUnchecked(api.Add(v0, v1), api.Add(1, v2)),
+		Y: api.DivUnchecked(api.Sub(api.Add(u, api.Mul(A, v0)), v1), api.Sub(1, v2)),
 	}
-}
-
-// scalarMul multiplies a point by a scalar using the double and add algorithm.
-// It uses api.ToBinary to decompose the scalar (assumed 256 bits, little-endian).
-func ScalarMul(api frontend.API, p twistededwards.Point, scalar frontend.Variable) twistededwards.Point {
-	// Convert scalar to its 256-bit binary representation.
-	bits := api.ToBinary(scalar, 256)
-	// Initialize result to the identity point: (0,1)
-	result := twistededwards.Point{
-		X: frontend.Variable(0),
-		Y: frontend.Variable(1),
-	}
-	// Use a temporary variable for the point to add.
-	temp := p
-	for i := 0; i < 256; i++ {
-		// If the i-th bit is 1, then add temp to result.
-		// Here we compute add := pointAdd(result, temp) and conditionally update result.
-		add := PointAdd(api, result, temp)
-		result = PointSelect(api, bits[i], result, add)
-		// Double the temp point for the next bit.
-		temp = PointDouble(api, temp)
-	}
-	return result
 }
 
 func AssertPointsIsOnCurve(api frontend.API, X, Y frontend.Variable) {
-	// Compute X² and Y²
 	x2 := api.Mul(X, X)
 	y2 := api.Mul(Y, Y)
-
-	// Compute X²Y²
-	x2y2 := api.Mul(x2, y2)
-
-	// Compute left-hand side (A*X² + Y²)
 	lhs := api.Add(api.Mul(A, x2), y2)
-
-	// Compute right-hand side (1 + D*X²Y²)
-	rhs := api.Add(1, api.Mul(D, x2y2))
-
-	// Assert equality of both sides
+	rhs := api.Add(1, api.Mul(D, x2, y2))
 	api.AssertIsEqual(lhs, rhs)
 }
 
+// PedersenCommitment returns X*G + Y*H for any field elements X and Y.
 func PedersenCommitment(api frontend.API, X, Y frontend.Variable) twistededwards.Point {
+	xBits := bits.ToBinary(api, X) // canonical: a non-reduced decomposition would commit to X + p
+	yBits := bits.ToBinary(api, Y)
 
-	vG := ScalarMul(api, G, X)
-	rH := ScalarMul(api, H, Y)
+	acc := gTable.lookup(api, 0, xBits)
+	acc = PointAdd(api, acc, hTable.lookup(api, 0, yBits))
+	for w := 1; w < nbWindows; w++ {
+		acc = PointAdd(api, acc, gTable.lookup(api, w, xBits))
+		acc = PointAdd(api, acc, hTable.lookup(api, w, yBits))
+	}
+	return acc
+}
 
-	commitOutput := PointAdd(api, vG, rH)
+// nbWindows 2-bit windows cover a canonical BN254 scalar (254 bits).
+const nbWindows = 127
 
-	return commitOutput
+// fixedBaseTable holds m * 4^w * P for every window w and digit m in [0, 3].
+type fixedBaseTable [nbWindows][4][2]*big.Int
 
+var gTable, hTable = newFixedBaseTable(GBabyJub), newFixedBaseTable(HBabyJub)
+
+func newFixedBaseTable(p *babyjub.Point) *fixedBaseTable {
+	t := new(fixedBaseTable)
+	base := p
+	for w := range t {
+		double := AddPks(base, base)
+		for m, q := range []*babyjub.Point{{X: big.NewInt(0), Y: big.NewInt(1)}, base, double, AddPks(double, base)} {
+			t[w][m] = [2]*big.Int{q.X, q.Y}
+		}
+		base = AddPks(double, double)
+	}
+	return t
+}
+
+// lookup returns the table entry for window w of the scalar bits. The entries
+// are constants, so the selection costs one constraint (the bit product).
+func (t *fixedBaseTable) lookup(api frontend.API, w int, bits []frontend.Variable) twistededwards.Point {
+	b0, b1 := bits[2*w], bits[2*w+1]
+	b01 := api.Mul(b0, b1)
+	coord := func(i int) frontend.Variable {
+		c0, c1, c2, c3 := t[w][0][i], t[w][1][i], t[w][2][i], t[w][3][i]
+		res := api.Add(c0, api.Mul(b0, new(big.Int).Sub(c1, c0)), api.Mul(b1, new(big.Int).Sub(c2, c0)))
+		cross := new(big.Int).Sub(c3, c2)
+		cross.Sub(cross, c1).Add(cross, c0)
+		return api.Add(res, api.Mul(b01, cross))
+	}
+	return twistededwards.Point{X: coord(0), Y: coord(1)}
 }

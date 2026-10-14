@@ -29,44 +29,36 @@ func circuitLogic(
 	// records nullifiers per tree number; neither is otherwise constrained.
 	primitives.BindPublicInputs(api, paymentCommitment, treeNumber)
 
-	//verify input notes
+	// Verify input notes
+	var senderPK frontend.Variable
 	for i := 0; i < nInputs; i++ {
-
 		// Compute public key from private key
 		publicKey, err := primitives.PublicKey(api, privateKeys[i])
 		if err != nil {
 			return err
 		}
-		//api.Println("PublicKey computed from private key")
+		if i == 0 {
+			senderPK = publicKey
+		}
 
 		// Compute and verify nullifier
 		nullifier := primitives.Nullifier(api, privateKeys[i], pathIndices[i])
-		//api.Println("Computed nullifier:", nullifier)
-		//api.Println("Comparing with expected:", nullifiers[i])
 		api.AssertIsEqual(nullifier, nullifiers[i])
-		//api.Println("Nullifier check passed")
 
 		// Compute V2 input commitment: H(H(spendPK, salt), uId)
 		commitment := primitives.CommitmentV2ERC721(api, publicKey, saltsIn[i], uIdIn[i])
-		//api.Println("Commitment computed:", commitment)
 
 		// Prepare path elements for merkle proof
 		pathElement := make([]frontend.Variable, merkleTreeDepth)
-		//api.Println("Path elements for merkle proof:")
 		for j := 0; j < merkleTreeDepth; j++ {
 			pathElement[j] = pathElements[i][j]
-			//api.Println("  PathElement[", j, "]:", pathElement[j])
 		}
 
 		// Compute and verify merkle root
-		//api.Println("Computing merkle proof...")
 		root := primitives.MerkleProof(api, commitment, pathIndices[i], pathElement)
-		//api.Println("Computed root:", root)
-		//api.Println("Expected root:", merkleRoots[i])
 
 		// Check if this is a dummy input (value = 0, isZero = 1)
 		isZero := api.IsZero(uIdIn[i])
-		//api.Println("IsZero(valueIn):", isZero)
 
 		// Enable = 1 - isZero (1 if value != 0, 0 if value == 0)
 		// This enables the merkle root check only for non-dummy inputs
@@ -74,24 +66,18 @@ func circuitLogic(
 
 		// A real input must not use the dummy nullifier, or the vault skips its root check
 		primitives.AssertRealInputNotDummy(api, Enable, nullifier)
-		//api.Println("Enable flag (1 for real input, 0 for dummy):", Enable)
 
 		// Diff = merkleRoots[i] - root
 		Diff := api.Sub(merkleRoot, root)
-		//api.Println("Diff (expected - computed root):", Diff)
 
 		// If Enable == 1 (real input), then Diff must be 0
 		// If Enable == 0 (dummy input), then this check is bypassed
 		DiffTimesEnable := api.Mul(Diff, Enable)
-		//api.Println("Diff * Enable:", DiffTimesEnable)
-		//api.Println("Asserting Diff * Enable == 0")
 		api.AssertIsEqual(DiffTimesEnable, 0)
-		//api.Println("Merkle root check passed for input", i)
 	}
 
 	//Verifying Outputs
 	for i := 0; i < mOutputs; i++ {
-
 		api.AssertIsEqual(uIdOut[i], uIdIn[i])
 		// Compute V2 output commitment: H(H(recipientPK, salt), uId)
 		commitmentOut := primitives.CommitmentV2ERC721(api, recipientPK[i], saltsOut[i], uIdOut[i])
@@ -99,13 +85,7 @@ func circuitLogic(
 
 	}
 
-	// Verify revert commitment
-	// Derive sender's public key from private key — no need to pass it explicitly
-	senderPK, err := primitives.PublicKey(api, privateKeys[0])
-	if err != nil {
-		return err
-	}
-
+	// Verify revert commitment, owned by the first input's key.
 	// Revert uses the SAME uIdIn[0] — guarantees the revert locks the same NFT
 	revertCommit := primitives.CommitmentV2ERC721(api, senderPK, revertSalt, uIdIn[0])
 	api.AssertIsEqual(revertCommit, revertCommitment)

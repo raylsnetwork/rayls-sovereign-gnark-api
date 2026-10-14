@@ -2,8 +2,10 @@ package dvptest
 
 import (
 	"fmt"
+	"math/big"
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/raylsnetwork/rayls-sovereign-gnark-api/pkg/circuits/internal/circuittest"
 	"github.com/raylsnetwork/rayls-sovereign-gnark-api/primitives"
@@ -62,17 +64,24 @@ func (js JoinSplit) SetOutputs(t testing.TB, w frontend.Circuit, values ...int64
 	t.Helper()
 	total := int64(0)
 	for i, v := range values {
-		rpk := primitives.DerivePublicKeyBN254(fmt.Sprint(900 + i))
-		salt := fmt.Sprint(200 + i)
-		circuittest.Set(t, w, "RecipientPK", rpk, i)
-		circuittest.Set(t, w, "SaltsOut", salt, i)
-		circuittest.Set(t, w, "ValuesOut", v, i)
-		circuittest.Set(t, w, "CommitmentsOut", js.Commit(rpk, salt, fmt.Sprint(v)), i)
+		js.SetOutput(t, w, i, fmt.Sprint(v))
 		total += v
 	}
 	senderPK := primitives.DerivePublicKeyBN254(fmt.Sprint(circuittest.Get(t, w, "PrivateKeys", 0)))
 	revertSalt := fmt.Sprint(circuittest.Get(t, w, "RevertSalt"))
 	circuittest.Set(t, w, "RevertCommitment", js.Commit(senderPK, revertSalt, fmt.Sprint(total)))
+}
+
+// SetOutput fills output i of w with a note of value for recipient key 900+i.
+// It leaves the revert commitment alone.
+func (js JoinSplit) SetOutput(t testing.TB, w frontend.Circuit, i int, value string) {
+	t.Helper()
+	rpk := primitives.DerivePublicKeyBN254(fmt.Sprint(900 + i))
+	salt := fmt.Sprint(200 + i)
+	circuittest.Set(t, w, "RecipientPK", rpk, i)
+	circuittest.Set(t, w, "SaltsOut", salt, i)
+	circuittest.Set(t, w, "ValuesOut", value, i)
+	circuittest.Set(t, w, "CommitmentsOut", js.Commit(rpk, salt, value), i)
 }
 
 // FillHonest makes w spend two notes of sk (60 + 40) into two outputs (70 + 30),
@@ -116,7 +125,15 @@ func JoinSplitAttacks[C frontend.Circuit](js JoinSplit, honest func(testing.TB) 
 		{
 			Name: "amount above range",
 			Build: mutate(func(t *testing.T, w C) {
-				circuittest.Set(t, w, "ValuesIn", "1000000000000000000000000000000000000", 0)
+				circuittest.Set(t, w, "ValuesIn", new(big.Int).Lsh(big.NewInt(1), primitives.MaxAmountBits).String(), 0)
+			}),
+		},
+		{
+			// 70 + 10^6 and 30 - 10^6 (p - 999970) still sum to 100 in the field.
+			Name: "negative output (field wrap)",
+			Build: mutate(func(t *testing.T, w C) {
+				js.SetOutput(t, w, 0, "1000070")
+				js.SetOutput(t, w, 1, new(big.Int).Sub(ecc.BN254.ScalarField(), big.NewInt(999_970)).String())
 			}),
 		},
 	}

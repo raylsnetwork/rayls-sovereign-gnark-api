@@ -8,8 +8,6 @@ const nInputs = 10
 const mOutputs = 2
 const merkleTreeDepth = 8
 
-var rangeCircuit = frontend.Variable("1000000000000000000000000000000000000")
-
 type EnygmaJoinSplitCircuit struct {
 	// Public signals
 	NftCommitment    frontend.Variable           `gnark:",public"`

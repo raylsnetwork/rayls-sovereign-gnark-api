@@ -24,6 +24,6 @@ func AssertRealInputNotDummy(api frontend.API, enabled, nullifier frontend.Varia
 // changed after proving and the proof still verifies.
 func BindPublicInputs(api frontend.API, vars ...frontend.Variable) {
 	for _, v := range vars {
-		api.AssertIsEqual(api.Mul(v, v), api.Mul(v, v))
+		api.Mul(v, v)
 	}
 }

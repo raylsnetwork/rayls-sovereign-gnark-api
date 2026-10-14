@@ -6,8 +6,10 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/math/cmp"
 )
+
+// remainderBits is the bit length of l.
+const remainderBits = 251
 
 // maxRemainderWhenQuotientIsSeven is p_BN254 - 7*l. When the quotient is 7 the
 // remainder must stay below it, otherwise 7*l + r would wrap past the field
@@ -32,9 +34,12 @@ func ModSubgroup(api frontend.API, x frontend.Variable) (frontend.Variable, erro
 	api.ToBinary(q, 3) // q in [0, 7]
 	api.AssertIsEqual(api.Add(api.Mul(q, JubJubPrimeSubGroup), r), x)
 
+	// 0 <= r < bound: both r and bound-1-r fit in 251 bits only if r < bound,
+	// since bound <= l < 2^251 and a negative difference wraps to near p.
 	isSeven := api.IsZero(api.Sub(q, 7))
 	bound := api.Select(isSeven, maxRemainderWhenQuotientIsSeven, JubJubPrimeSubGroup)
-	api.AssertIsEqual(cmp.IsLess(api, r, bound), 1)
+	api.ToBinary(r, remainderBits)
+	api.ToBinary(api.Sub(bound, 1, r), remainderBits)
 
 	return r, nil
 }

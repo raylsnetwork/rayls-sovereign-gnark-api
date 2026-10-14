@@ -199,16 +199,11 @@ func validateEnygmaInputs(request *EnygmaJoinSplitRequest) error {
 
 // Set witness for Enygma circuit
 func setEnygmaWitnessOptimized(witness *EnygmaJoinSplitCircuit, request *EnygmaJoinSplitRequest) {
-	//fmt.Println("=== WITNESS PREPARATION START ===")
-	//fmt.Printf("NFT Commitment: %s\n", request.NftCommitment)
-	//fmt.Printf("Contract Address (hex): %s\n", request.EnygmaContractAddress)
-
 	witness.NftCommitment = parseBigIntOptimized(request.NftCommitment)
 	witness.EnygmaContractAddress = parseBigIntOptimized(convertAddressToBigInt(request.EnygmaContractAddress))
 
 	// Fill actual inputs
 	actualInputs := len(request.ValuesIn)
-	//fmt.Printf("\n=== Processing %d actual inputs ===\n", actualInputs)
 
 	for i := 0; i < actualInputs && i < nInputs; i++ {
 		witness.ValuesIn[i] = parseBigIntOptimized(request.ValuesIn[i])
@@ -219,13 +214,10 @@ func setEnygmaWitnessOptimized(witness *EnygmaJoinSplitCircuit, request *EnygmaJ
 		witness.TreeNumbers[i] = frontend.Variable(request.TreeNumbers[i])
 
 		nullifier := computeNullifier(request.KeyPairsIn[i].PrivateKey, request.MerkleProofs[i].Indices)
-		//fmt.Printf("  Computed Nullifier: %s\n", nullifier)
 		witness.Nullifiers[i] = parseBigIntOptimized(nullifier)
 
 		// Set path elements
-		//fmt.Println("  Path elements:")
 		for j := 0; j < len(request.MerkleProofs[i].Elements) && j < merkleTreeDepth; j++ {
-			//fmt.Printf("    [%d]: %s\n", j, request.MerkleProofs[i].Elements[j])
 			witness.PathElements[i][j] = parseBigIntOptimized(request.MerkleProofs[i].Elements[j])
 		}
 		// Fill remaining path elements with zeros

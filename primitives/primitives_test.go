@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/native/twistededwards"
+	"github.com/iden3/go-iden3-crypto/babyjub"
 	"github.com/iden3/go-iden3-crypto/poseidon"
 )
 
@@ -177,6 +179,100 @@ func TestMerkleProof(t *testing.T) {
 			err := solve(t, &merkleCircuit{}, a)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+type pedersenCircuit struct {
+	V, R         frontend.Variable
+	WantX, WantY frontend.Variable `gnark:",public"`
+	zeroR        bool
+}
+
+func (c *pedersenCircuit) Define(api frontend.API) error {
+	r := c.R
+	if c.zeroR {
+		r = 0
+	}
+	p := PedersenCommitment(api, c.V, r)
+	api.AssertIsEqual(p.X, c.WantX)
+	api.AssertIsEqual(p.Y, c.WantY)
+	return nil
+}
+
+func TestPedersenCommitmentMatchesNative(t *testing.T) {
+	t.Parallel()
+	pMinus1 := new(big.Int).Sub(bn254Modulus, big.NewInt(1))
+	lMinus1 := new(big.Int).Sub(JubJubPrimeSubGroup, big.NewInt(1))
+	maxAmount := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), MaxAmountBits), big.NewInt(1))
+	tests := []struct {
+		name string
+		v, r *big.Int
+	}{
+		{"zero", big.NewInt(0), big.NewInt(0)},
+		{"one", big.NewInt(1), big.NewInt(1)},
+		{"max amount", maxAmount, ParseBigInt(testSk)},
+		{"l-1", lMinus1, lMinus1},
+		{"l", JubJubPrimeSubGroup, big.NewInt(5)},
+		{"p-1", pMinus1, pMinus1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			want := PedersenCommitmentBabyJub(tc.v, tc.r)
+			if err := solve(t, &pedersenCircuit{}, &pedersenCircuit{V: tc.v, R: tc.r, WantX: want.X, WantY: want.Y}); err != nil {
+				t.Fatalf("PedersenCommitment != PedersenCommitmentBabyJub: %v", err)
+			}
+			want = GetPK(tc.v)
+			if err := solve(t, &pedersenCircuit{zeroR: true}, &pedersenCircuit{V: tc.v, R: 0, WantX: want.X, WantY: want.Y, zeroR: true}); err != nil {
+				t.Fatalf("PedersenCommitment(v, 0) != v*G: %v", err)
+			}
+		})
+	}
+}
+
+func TestPedersenCommitmentRejectsForgedValue(t *testing.T) {
+	t.Parallel()
+	want := PedersenCommitmentBabyJub(big.NewInt(100), big.NewInt(7))
+	if err := solve(t, &pedersenCircuit{}, &pedersenCircuit{V: 101, R: 7, WantX: want.X, WantY: want.Y}); err == nil {
+		t.Fatal("commitment to 100 opened as 101")
+	}
+}
+
+type pointAddCircuit struct {
+	X1, Y1, X2, Y2 frontend.Variable
+	WantX, WantY   frontend.Variable `gnark:",public"`
+}
+
+func (c *pointAddCircuit) Define(api frontend.API) error {
+	p := PointAdd(api, twistededwards.Point{X: c.X1, Y: c.Y1}, twistededwards.Point{X: c.X2, Y: c.Y2})
+	api.AssertIsEqual(p.X, c.WantX)
+	api.AssertIsEqual(p.Y, c.WantY)
+	return nil
+}
+
+func TestPointAddMatchesNative(t *testing.T) {
+	t.Parallel()
+	identity := &babyjub.Point{X: big.NewInt(0), Y: big.NewInt(1)}
+	a, b := GetPK(big.NewInt(12345)), GetH(ParseBigInt(testSk))
+	negA := &babyjub.Point{X: new(big.Int).Sub(bn254Modulus, a.X), Y: a.Y}
+	tests := []struct {
+		name string
+		p, q *babyjub.Point
+	}{
+		{"distinct", a, b},
+		{"double", a, a},
+		{"identity", a, identity},
+		{"inverse", a, negA},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			want := AddPks(tc.p, tc.q)
+			w := &pointAddCircuit{X1: tc.p.X, Y1: tc.p.Y, X2: tc.q.X, Y2: tc.q.Y, WantX: want.X, WantY: want.Y}
+			if err := solve(t, &pointAddCircuit{}, w); err != nil {
+				t.Fatalf("PointAdd != AddPks: %v", err)
 			}
 		})
 	}
