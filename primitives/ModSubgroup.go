@@ -37,7 +37,8 @@ func ModSubgroup(api frontend.API, x frontend.Variable) (frontend.Variable, erro
 	// 0 <= r < bound, where bound <= l < 2^251:
 	//   ToBinary(r, 251)           gives 0 <= r < 2^251;
 	//   ToBinary(bound-1-r, 251)   gives r <= bound-1, because for r >= bound
-	//   the difference is negative and wraps to above p - 2^251 > 2^251.
+	//   the difference is negative and wraps to p - (r - bound + 1), which is
+	//   above p - 2^251 > 2^251 because p > 2^253 (BN254).
 	isSeven := api.IsZero(api.Sub(q, 7))
 	bound := api.Select(isSeven, maxRemainderWhenQuotientIsSeven, JubJubPrimeSubGroup)
 	api.ToBinary(r, remainderBits)

@@ -1,10 +1,8 @@
 package primitives
 
 import (
-	"fmt"
 	"math/big"
 	"os"
-	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
@@ -13,13 +11,8 @@ import (
 	"github.com/iden3/go-iden3-crypto/poseidon"
 )
 
-var hintRegistrationOnce sync.Once
-
 func init() {
-	hintRegistrationOnce.Do(func() {
-		solver.RegisterHint(ModHintBabyJubJub)
-		fmt.Println("✓ Hint functions registered")
-	})
+	solver.RegisterHint(ModHintBabyJubJub)
 }
 
 // ModHintBabyJubJub returns (value mod l, value / l) for l = JubJubPrimeSubGroup.
