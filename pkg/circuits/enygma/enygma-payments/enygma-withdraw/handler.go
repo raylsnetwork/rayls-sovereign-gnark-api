@@ -117,6 +117,10 @@ func validateInputsGeneric(anonymity_set []string, senderID string, previousV st
 // validatePaymentCommitment checks that payment_commitment opens to the withdrawn
 // amount under the payment key, as the circuit requires, so a mismatch is
 // reported clearly instead of as an unsatisfied constraint.
+//
+// It uses the native ComputeCommitmentV2ERC20BN254, which must stay in sync with
+// the in-circuit primitives.CommitmentV2ERC20; TestCommitmentsMatchNative checks
+// that they agree. The error leaves out the payment key and salt on purpose.
 func validatePaymentCommitment(commitment, secretKey, salt, amount, address string) error {
 	pk := primitives.DerivePublicKeyBN254(secretKey)
 	expected := primitives.ComputeCommitmentV2ERC20BN254(pk, salt, amount, address)

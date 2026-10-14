@@ -34,8 +34,10 @@ func ModSubgroup(api frontend.API, x frontend.Variable) (frontend.Variable, erro
 	api.ToBinary(q, 3) // q in [0, 7]
 	api.AssertIsEqual(api.Add(api.Mul(q, JubJubPrimeSubGroup), r), x)
 
-	// 0 <= r < bound: both r and bound-1-r fit in 251 bits only if r < bound,
-	// since bound <= l < 2^251 and a negative difference wraps to near p.
+	// 0 <= r < bound, where bound <= l < 2^251:
+	//   ToBinary(r, 251)           gives 0 <= r < 2^251;
+	//   ToBinary(bound-1-r, 251)   gives r <= bound-1, because for r >= bound
+	//   the difference is negative and wraps to above p - 2^251 > 2^251.
 	isSeven := api.IsZero(api.Sub(q, 7))
 	bound := api.Select(isSeven, maxRemainderWhenQuotientIsSeven, JubJubPrimeSubGroup)
 	api.ToBinary(r, remainderBits)

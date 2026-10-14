@@ -102,7 +102,9 @@ func newFixedBaseTable(p *babyjub.Point) *fixedBaseTable {
 }
 
 // lookup returns the table entry for window w of the scalar bits. The entries
-// are constants, so the selection costs one constraint (the bit product).
+// are constants, so the selection costs one constraint (the bit product). The
+// interpolation c0 + b0(c1-c0) + b1(c2-c0) + b0b1(c3-c2-c1+c0) is exact for any
+// four constants, including when the cross coefficient is zero.
 func (t *fixedBaseTable) lookup(api frontend.API, w int, bits []frontend.Variable) twistededwards.Point {
 	b0, b1 := bits[2*w], bits[2*w+1]
 	b01 := api.Mul(b0, b1)
