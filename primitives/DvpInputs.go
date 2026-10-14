@@ -19,14 +19,13 @@ func AssertRealInputNotDummy(api frontend.API, enabled, nullifier frontend.Varia
 // to public inputs that appear in a constraint; one that appears in none can be
 // changed after proving and the proof still verifies.
 //
-// The product v*v is discarded on purpose: gnark's R1CS builder records the
-// multiplication gate v*v = w whether or not w is used, which is enough to put v
-// in the constraint system. This is specific to the R1CS (Groth16) builder; the
-// DvP circuit tests (circuittest.ProofBindsPublicInputs) prove, then change each
-// bound input and require Verify to fail, so a gnark upgrade that drops the gate
-// fails them. Checked with gnark v0.14.0; rerun those tests after any upgrade.
+// v == v is always true; the assertion is there only to put v in the constraint
+// system (one R1CS constraint per input). The DvP circuit tests
+// (circuittest.ProofBindsPublicInputs) prove, then change each bound input and
+// require Verify to fail, so a gnark change that drops the constraint fails them.
+// Checked with gnark v0.14.0; rerun those tests after any upgrade.
 func BindPublicInputs(api frontend.API, vars ...frontend.Variable) {
 	for _, v := range vars {
-		api.Mul(v, v)
+		api.AssertIsEqual(v, v)
 	}
 }
