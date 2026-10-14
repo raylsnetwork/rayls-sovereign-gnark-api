@@ -78,8 +78,9 @@ type PublicInputChange[C frontend.Circuit] struct {
 // against each change of public inputs. It is skipped in -short mode.
 //
 // It is the regression guard for primitives.BindPublicInputs, whose binding
-// relies on gnark keeping an always-true assertion. IsSolved cannot catch a lost
-// binding (any value satisfies v == v), so keep the DvP tests that call this.
+// relies on gnark keeping an unused multiplication gate. IsSolved cannot catch a
+// lost binding (the solver recomputes the gate from the changed input), so keep
+// the DvP tests that call this.
 func ProofBindsPublicInputs[C frontend.Circuit](t *testing.T, ccs constraint.ConstraintSystem, honest func(testing.TB) C, changes []PublicInputChange[C]) {
 	t.Helper()
 	if testing.Short() {
