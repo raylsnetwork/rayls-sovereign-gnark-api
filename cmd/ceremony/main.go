@@ -4,7 +4,7 @@
 //	ceremony init        --ptau FILE --ptau-source URL   # import the public phase 1
 //	ceremony contribute  --name NAME --beacon-source S    # add to phase 2, announce the next beacon
 //	ceremony finalize    --beacon HEX [--out last_build]  # release new keys
-//	ceremony verify      [--out last_build] [--ptau FILE]
+//	ceremony verify      [--out last_build] [--ptau FILE]  # transcript only; ./ceremony.sh verify also checks signatures and drand
 //	ceremony status
 //	ceremony info           # machine-readable state, key=value per line
 //	ceremony contributions  # index<TAB>name<TAB>path<TAB>sha256<TAB>beacon per line

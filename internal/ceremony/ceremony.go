@@ -267,6 +267,11 @@ func (c *Ceremony) Finalize(beaconHex, outDir string) (*Release, error) {
 // parameters, every phase 2 contribution and every release. If ptauPath is set
 // the phase 1 parameters must derive from that file. If outDir is set its
 // files must match the latest release.
+//
+// It does not check contributor identity (that each contribution commit is
+// SSH-signed by its contributor's registered key and has an attestation) or
+// the release beacons against drand; ./ceremony.sh verify adds those checks
+// on top of this replay.
 func (c *Ceremony) Verify(outDir, ptauPath string) error {
 	m, err := loadManifest(c.Dir)
 	if err != nil {
