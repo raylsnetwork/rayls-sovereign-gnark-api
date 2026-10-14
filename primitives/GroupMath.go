@@ -40,9 +40,12 @@ var (
 	JubJubPrimeSubGroup, _ = new(big.Int).SetString("2736030358979909402780800718157159386076813972158567259200215660948447373041", 10)  //sub group prime in babyjubjub is 2736030358979909402780800718157159386076813972158567259200215660948447373041, a 251 bit number
 )
 
-// PointAdd adds two points with the complete twisted Edwards law (a is a square
-// and d is not, so the denominators never vanish for points on the curve).
-// Both inputs must be on the curve.
+// PointAdd adds two points with the complete twisted Edwards law. Both inputs
+// MUST be on the BabyJubJub curve: fixed generator multiples, PedersenCommitment
+// outputs, or points checked with AssertPointsIsOnCurve. For curve points the
+// denominators 1 +- d*v0*v1 never vanish, because a is a square and d is not, so
+// api.DivUnchecked is safe; off-curve inputs could give a zero denominator and an
+// unconstrained result.
 func PointAdd(api frontend.API, p1, p2 twistededwards.Point) twistededwards.Point {
 	v0 := api.Mul(p1.X, p2.Y)
 	v1 := api.Mul(p2.X, p1.Y)
