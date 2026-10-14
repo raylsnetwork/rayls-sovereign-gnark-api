@@ -110,6 +110,8 @@ func circuitLogic(
 	// requires the two to be equal, and the join-split circuit guarantees that
 	// output holds exactly what its nullified inputs held (minus change).
 	// Opening it here with sender_tx_value proves the credit equals that value.
+	// address stays private: the equality binds it to the token address inside
+	// the join-split's payment commitment.
 	paymentPK, err := primitives.PublicKey(api, paymentSecretKey)
 	if err != nil {
 		return err

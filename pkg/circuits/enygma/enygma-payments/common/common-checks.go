@@ -120,6 +120,8 @@ func CheckRangeProofVOnly(api frontend.API, sender_tx_value frontend.Variable) {
 func CheckReceiverAmounts(api frontend.API, k int, senderId frontend.Variable, anonymity_set []frontend.Variable, txValue []frontend.Variable) {
 	for i := 0; i < k; i++ {
 		isReceiver := api.Sub(1, api.IsZero(api.Sub(anonymity_set[i], senderId)))
+		// The sender slot becomes 0 here; its value is bounded by the caller's
+		// CheckRangeProofWithPreviousV or CheckRangeProofVOnly.
 		primitives.AssertIsAmount(api, api.Mul(isReceiver, txValue[i]))
 	}
 }
@@ -137,6 +139,9 @@ func CheckNegatedSenderValue(api frontend.API, selectedV frontend.Variable, send
 // checked to be Pedersen(txValue[i], txRandom[i]), and neither the values nor the
 // random factors can sum past p, it equals Pedersen(sum txValue, sum txRandom).
 func SumTxCommits(api frontend.API, txCommit [][2]frontend.Variable) twistededwards.Point {
+	if len(txCommit) == 0 {
+		panic("SumTxCommits: no tx commitments")
+	}
 	sum := twistededwards.Point{X: txCommit[0][0], Y: txCommit[0][1]}
 	for _, c := range txCommit[1:] {
 		sum = primitives.PointAdd(api, sum, twistededwards.Point{X: c[0], Y: c[1]})

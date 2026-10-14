@@ -24,7 +24,7 @@ func AssertRealInputNotDummy(api frontend.API, enabled, nullifier frontend.Varia
 // in the constraint system. This is specific to the R1CS (Groth16) builder; the
 // DvP circuit tests (circuittest.ProofBindsPublicInputs) prove, then change each
 // bound input and require Verify to fail, so a gnark upgrade that drops the gate
-// fails them.
+// fails them. Checked with gnark v0.14.0; rerun those tests after any upgrade.
 func BindPublicInputs(api frontend.API, vars ...frontend.Variable) {
 	for _, v := range vars {
 		api.Mul(v, v)

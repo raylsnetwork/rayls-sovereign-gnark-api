@@ -71,6 +71,8 @@ func PedersenCommitment(api frontend.API, X, Y frontend.Variable) twistededwards
 	xBits := bits.ToBinary(api, X) // canonical: a non-reduced decomposition would commit to X + p
 	yBits := bits.ToBinary(api, Y)
 
+	// acc starts from window 0 of X*G rather than the identity; every window of
+	// X*G and Y*H is still added below (a 00 window is the identity point).
 	acc := gTable.lookup(api, 0, xBits)
 	acc = PointAdd(api, acc, hTable.lookup(api, 0, yBits))
 	for w := 1; w < nbWindows; w++ {
