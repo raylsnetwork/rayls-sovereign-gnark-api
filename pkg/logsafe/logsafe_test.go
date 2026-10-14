@@ -14,6 +14,13 @@ func TestString(t *testing.T) {
 		{"newline", "a\nINFO forged", `a\nINFO forged`},
 		{"crlf", "a\r\nb", `a\r\nb`},
 		{"empty", "", ""},
+		{"tab kept", "a\tb", "a\tb"},
+		{"nul", "a\x00b", `a\x00b`},
+		{"ansi escape", "\x1b[31mred", `\x1b[31mred`},
+		{"del", "a\x7fb", `a\x7fb`},
+		{"c1 control", "a\u0085b", `a\x85b`},
+		{"line separator", "a\u2028b", `a\u2028b`},
+		{"non-ascii kept", "café €", "café €"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
