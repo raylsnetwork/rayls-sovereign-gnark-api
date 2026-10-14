@@ -126,14 +126,14 @@ func NewHandler(pkPath, vkPath, r1csPath string) gin.HandlerFunc {
 
 		response, err := generateErc1155Proof(&witness, compiled, &request)
 		if err != nil {
-			errorMsg := fmt.Sprintf("Failed to generate proof: %v", err)
+			fmt.Printf("Proof generation failed: %s\n", logsafe.Err(err))
+			errorMsg := "Failed to generate proof"
 			if containsConstraintError(err.Error()) {
 				errorMsg += "\nNote: This constraint error suggests input validation issues. The circuit computed different values than provided."
 			}
 
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":     errorMsg,
-				"raw_error": err.Error(),
+				"error": errorMsg,
 			})
 			return
 		}
