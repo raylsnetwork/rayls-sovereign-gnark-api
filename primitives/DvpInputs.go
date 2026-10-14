@@ -1,15 +1,11 @@
 package primitives
 
-import (
-	"math/big"
-
-	"github.com/consensys/gnark/frontend"
-)
+import "github.com/consensys/gnark/frontend"
 
 // DummyNullifier is Poseidon(0, 0): the nullifier of an all-zero padding input.
 // The vault contracts (AbstractCoinVault.dummyNullifier) skip the Merkle root and
 // double-spend checks for any input carrying it.
-var DummyNullifier, _ = new(big.Int).SetString("14744269619966411208579211824598458697587494354926760081771325075741142829156", 10)
+var DummyNullifier = mustBigInt("14744269619966411208579211824598458697587494354926760081771325075741142829156")
 
 // AssertRealInputNotDummy requires that an enabled (non-zero value) input does not
 // use DummyNullifier. Without it, sk = 0 and pathIndex = 0 give a real-value input

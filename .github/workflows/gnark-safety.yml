@@ -18,5 +18,7 @@ jobs:
         with:
           path: ./...
           field: bn254
-          # GNARK_UNSAFE_SETUP (low) stays reported until keys come from an MPC ceremony.
+          # The two GNARK_UNSAFE_SETUP (low) results are reviewed and suppressed inline
+          # with //gnark-safety:ignore (gated dev keygen, H-parameter self-check);
+          # release keys come from the ceremony. Any new finding needs the same review.
           fail-on: medium

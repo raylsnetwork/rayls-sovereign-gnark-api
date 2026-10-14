@@ -207,6 +207,16 @@ func ConvertAddressToBigInt(address string) *big.Int {
 	return bigInt
 }
 
+// mustBigInt parses a base-10 constant and panics if it is malformed, so a bad
+// literal fails at package init instead of as a nil value at proving time.
+func mustBigInt(s string) *big.Int {
+	n, ok := new(big.Int).SetString(s, 10)
+	if !ok {
+		panic("primitives: invalid big.Int constant " + s)
+	}
+	return n
+}
+
 func ParseBigInt(s string) *big.Int {
 	n, _ := new(big.Int).SetString(s, 10)
 	return n

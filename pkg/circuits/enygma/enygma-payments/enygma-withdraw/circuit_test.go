@@ -19,7 +19,7 @@ const (
 
 // withdraw builds a fixture where the sender is credited v, backed by a DvP
 // join-split payment output worth paymentValue under the payment key.
-func withdraw(t *testing.T, v, paymentValue int64) *WithdrawEnygmak3Circuit {
+func withdraw(t testing.TB, v, paymentValue int64) *WithdrawEnygmak3Circuit {
 	t.Helper()
 	f := paytest.New(t, k3, senderIdx, 0, v)
 	values := make([]*big.Int, k3)
@@ -51,6 +51,20 @@ func TestWithdrawHonest(t *testing.T) {
 	if err := circuittest.IsSolved(t, circuittest.Compile(t, &WithdrawEnygmak3Circuit{}), withdraw(t, 30, 30)); err != nil {
 		t.Fatalf("honest withdraw rejected: %v", err)
 	}
+}
+
+// TestWithdrawProofBindsPublicInputs checks at the Groth16 level that a proof
+// cannot be reused with another payment commitment (the contract compares it
+// with the join-split receipt) or another nullifier.
+func TestWithdrawProofBindsPublicInputs(t *testing.T) {
+	t.Parallel()
+	ccs := circuittest.Compile(t, &WithdrawEnygmak3Circuit{})
+	honest := func(t testing.TB) *WithdrawEnygmak3Circuit { return withdraw(t, 30, 30) }
+	circuittest.ProofBindsPublicInputs(t, ccs, honest, []circuittest.PublicInputChange[*WithdrawEnygmak3Circuit]{
+		{Name: "unchanged", Mutate: func(testing.TB, *WithdrawEnygmak3Circuit) {}},
+		{Name: "other PaymentCommitment", Mutate: func(t testing.TB, w *WithdrawEnygmak3Circuit) { circuittest.Set(t, w, "PaymentCommitment", 1337) }, WantErr: true},
+		{Name: "other Nullifier", Mutate: func(t testing.TB, w *WithdrawEnygmak3Circuit) { circuittest.Set(t, w, "Nullifier", 1337) }, WantErr: true},
+	})
 }
 
 func TestWithdrawRejectsAttacks(t *testing.T) {

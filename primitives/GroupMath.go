@@ -27,17 +27,17 @@ var (
 	H = twistededwards.Point{X: Hx, Y: Hy}
 
 	// Standalone version (babyjub.Point) - used by validation and non-circuit code
-	gxBig, _ = new(big.Int).SetString(Gx, 10)
-	gyBig, _ = new(big.Int).SetString(Gy, 10)
+	gxBig    = mustBigInt(Gx)
+	gyBig    = mustBigInt(Gy)
 	GBabyJub = &babyjub.Point{X: gxBig, Y: gyBig}
 
-	hxBig, _ = new(big.Int).SetString(Hx, 10)
-	hyBig, _ = new(big.Int).SetString(Hy, 10)
+	hxBig    = mustBigInt(Hx)
+	hyBig    = mustBigInt(Hy)
 	HBabyJub = &babyjub.Point{X: hxBig, Y: hyBig}
 
 	// Prime moduli
-	JubJubPrimeGroup, _    = new(big.Int).SetString("21888242871839275222246405745257275088548364400416034343698204186575808495617", 10) //group prime in babyjubjub is 21888242871839275222246405745257275088548364400416034343698204186575808495617, a 254 bit number, BN254 prime
-	JubJubPrimeSubGroup, _ = new(big.Int).SetString("2736030358979909402780800718157159386076813972158567259200215660948447373041", 10)  //sub group prime in babyjubjub is 2736030358979909402780800718157159386076813972158567259200215660948447373041, a 251 bit number
+	JubJubPrimeGroup    = mustBigInt("21888242871839275222246405745257275088548364400416034343698204186575808495617") //group prime in babyjubjub is 21888242871839275222246405745257275088548364400416034343698204186575808495617, a 254 bit number, BN254 prime
+	JubJubPrimeSubGroup = mustBigInt("2736030358979909402780800718157159386076813972158567259200215660948447373041")  //sub group prime in babyjubjub is 2736030358979909402780800718157159386076813972158567259200215660948447373041, a 251 bit number
 )
 
 // PointAdd adds two points with the complete twisted Edwards law. Both inputs

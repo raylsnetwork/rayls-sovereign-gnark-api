@@ -45,6 +45,7 @@ func circuitLogic(
 		eq := api.IsZero(api.Sub(senderId, anonymity_set[i]))
 		selected_v = api.Add(selected_v, api.Mul(eq, txValue[i]))
 	}
+	// sender_tx_value < 2^MaxAmountBits is enforced by CheckRangeProofWithPreviousV below.
 	common.CheckNegatedSenderValue(api, selected_v, sender_tx_value)
 
 	///////////////////////////////////**///////////////////////////////////
