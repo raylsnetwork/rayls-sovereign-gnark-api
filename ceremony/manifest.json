@@ -160,7 +160,35 @@
     ]
   },
   "phase2": {
-    "contributions": [],
+    "contributions": [
+      {
+        "index": 1,
+        "name": "pp-rayls",
+        "path": "phase2/0001-pp-rayls",
+        "sha256": "b478885044bbde2e74d5612506960f67f52ac6aa6d03c142ea7442f8876d40f0",
+        "files": {
+          "Depositk2": "fb2e93950213726276edb9f84ad9eede871b6e18effe9d3e23dbb628fd3866b8",
+          "Depositk3": "2a32075c2ddf9d1f3a062163f6afac174c57a7a0664885f6600a5f188a52d47a",
+          "Depositk4": "0cb1637ce50f3c2ced583b7862d94cdc12f43a0eff3a97615f3339cb6b2cbc83",
+          "Depositk5": "a015174ba753b859ecee3144daf19c7ffedd438086233d993d65aaa69991dd1a",
+          "Depositk6": "0d4cebaf363030c3f87437680ff14d725500c32bf4a9a1a165c6fa5742b5a698",
+          "EnygmaJoinSplit": "534d248f4228f0d834e1c44064e6ff737050ddc051cf2094c5bb8f5b69469b47",
+          "Enygmak2": "07008daa082a541933bac4596cf44392fcaeb92fce405d2875267eb0c6189b3a",
+          "Enygmak3": "b1ca007e78963c7203448d9507e6e9168d5f60aba5fa9cc73bd953494b55f485",
+          "Enygmak4": "ee712407e08a485c755c5c3946a2bc2cbb40f589fe37abfda7005e87d008d004",
+          "Enygmak5": "d2afce9decf7a3e2dedf3c416f33bfdc137714ce2fa7e1ff3ba5da53db7a3fd0",
+          "Enygmak6": "e889e432125abce84885dc666fbba95376570e364e706b0e492fe094cc53e517",
+          "Erc1155JoinSplit": "4b266b3b00d0b6f284b454a469878908dc9afe00bad7bacb289377b79d5b2a6f",
+          "Erc721Ownership": "21808babf22f74f013ff7b408cc943bfad10afbf37894bc1c6ab1c6ff54a22c7",
+          "Withdrawk2": "5ca69e3ebcbfc2328ddbeed69b2491c35f4413373bbc45f5c2d279367af8fa81",
+          "Withdrawk3": "4f81e24a25fca2d82845d61ea37865a3ac10fcb6c027b3fd7258ca69d4c4162a",
+          "Withdrawk4": "2a1a36abb814cc838c7e8c795527ec8f4920b59e18b61c860e99eb937141d564",
+          "Withdrawk5": "90fb97b974ee5e6961bfa764f422ea9e790dcbf5a621a25178cd0f8931f7bf8a",
+          "Withdrawk6": "1402acfd4e441f76b0bf1ea0d131c702da4998b63d444d69cf36adef91734db9"
+        },
+        "beacon": "drand quicknet round 33088141"
+      }
+    ],
     "releases": []
   }
 }
