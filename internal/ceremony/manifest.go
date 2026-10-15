@@ -22,7 +22,10 @@ const manifestVersion = 2
 // beacon to the chain as it stood at that point, so every release includes
 // every earlier contribution.
 type Manifest struct {
-	Version  int             `json:"version"`
+	Version int `json:"version"`
+	// Epoch counts restarts: a circuit change voids every contribution, so the
+	// ceremony starts over from a fresh phase 2. Absent (0) means epoch 1.
+	Epoch    int             `json:"epoch,omitempty"`
 	Curve    string          `json:"curve"`
 	Gnark    string          `json:"gnark"`
 	Circuits []CircuitRecord `json:"circuits"`
@@ -101,6 +104,9 @@ type SRSRecord struct {
 	Path   string `json:"path"`
 	SHA256 string `json:"sha256"`
 }
+
+// CurrentEpoch returns the ceremony's epoch, counting from 1.
+func (m *Manifest) CurrentEpoch() int { return max(m.Epoch, 1) }
 
 // LatestRelease returns the newest release, or nil if there is none.
 func (m *Manifest) LatestRelease() *Release {

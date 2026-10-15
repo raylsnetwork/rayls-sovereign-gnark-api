@@ -70,9 +70,16 @@ Joining the ceremony (all of steps 2-6 below, in order):
 
 Commands, in the order you run them:
 
-  1. init       [--ptau FILE] [--key PUBKEY]
-                First time only, for the whole repository: import phase 1 from
-                the Perpetual Powers of Tau (downloaded and cached once).
+  1. init       [--ptau FILE] [--key PUBKEY] [--restart] [--jobs N] [--push]
+                Start the ceremony for the whole repository: import phase 1
+                from the Perpetual Powers of Tau (downloaded and cached once).
+                Run it once, and again only after the circuits change: if a
+                ceremony exists and the code compiles to other circuits, init
+                first retires it (tags its last commit $DIR-epoch-N and
+                removes $DIR/), then starts epoch N+1. --restart retires it
+                even if the circuits are unchanged. On $DEFAULT_BRANCH it opens a
+                ceremony/restart-epoch-N+1 branch; on any other branch it
+                commits there, and the new epoch continues on that branch.
 
   2. register   --name NAME [--key PUBKEY] [--push]
                 Register your SSH public key (once per institution or user).
@@ -243,9 +250,11 @@ require_up_to_date() {
 }
 
 # use_branch NAME switches to ceremony/NAME when on the default branch, so the
-# commits can go up as a pull request. On any other branch it stays put.
+# commits can go up as a pull request. On any other branch it stays put. From
+# epoch 2 on, NAME gets an "eN-" prefix so it can't clash with earlier epochs.
 use_branch() {
-    local name="$1" current
+    local name current
+    name="$(epoch_prefix)$1"
     current="$(git branch --show-current)"
     if [[ "$current" = "$DEFAULT_BRANCH" ]] || [[ "$current" = "master" ]]; then
         git switch -q -c "ceremony/$name" || die "could not create branch ceremony/$name"
@@ -266,6 +275,89 @@ maybe_push() {
 ensure_lfs_rule() {
     local rule="$DIR/**/*.bin filter=lfs diff=lfs merge=lfs -text"
     grep -qxF "$rule" .gitattributes 2>/dev/null || echo "$rule" >> .gitattributes
+}
+
+# --- epochs ---------------------------------------------------------------
+#
+# A circuit change voids every contribution, so init retires the ceremony and
+# starts a new epoch. Contribution and release numbers restart at 1 in each
+# epoch; from epoch 2 on, branch names and messages name the epoch.
+
+current_epoch() {
+    local e
+    e="$(info epoch)"
+    echo "${e:-1}"
+}
+
+# epoch_prefix prints "" in epoch 1 (or with no ceremony) and "eN-" after,
+# for branch names.
+epoch_prefix() {
+    local e
+    [[ -f "$DIR/manifest.json" ]] || return 0
+    e="$(current_epoch)"
+    [[ "$e" -le 1 ]] || echo "e$e-"
+}
+
+# epoch_words prints "" in epoch 1 and "epoch N " after, for messages.
+epoch_words() {
+    local e
+    e="$(current_epoch)"
+    [[ "$e" -le 1 ]] || echo "epoch $e "
+}
+
+# restore_ceremony undoes a retirement that did not complete: it brings back
+# $DIR/ as committed and drops anything init wrote there.
+restore_ceremony() {
+    git reset -q -- "$DIR"
+    git checkout -q -- "$DIR"
+    git clean -fdq -- "$DIR"
+}
+
+# tag_epoch TAG REASON makes a signed tag on the last commit of the current
+# (retiring) epoch, so its transcript and releases stay easy to find.
+tag_epoch() {
+    local tag="$1" reason="$2" commit existing
+    commit="$(git log -1 --format=%H -- "$DIR")"
+    [[ -n "$commit" ]] || die "$DIR/ has no commits to tag"
+    if existing="$(git rev-parse -q --verify "refs/tags/$tag^{commit}")"; then
+        [[ "$existing" = "$commit" ]] || die "tag $tag already exists, on $existing instead of $commit"
+        step "tag $tag already marks $commit"
+        return 0
+    fi
+    printf 'ceremony: end of epoch %s (%s)\n\n%s\n' "$(current_epoch)" "$reason" "$(tool status --dir "$DIR" 2>/dev/null)" \
+        | git -c gpg.format=ssh -c user.signingkey="$(signing_key)" tag -s "$tag" "$commit" -F - \
+        || die "could not tag $commit as $tag"
+    step "tagged the last commit of epoch $(current_epoch) ($commit) as $tag"
+}
+
+# retire_ceremony RESTART checks the existing ceremony against the
+# circuits and, if they changed (or RESTART is 1), tags and removes it.
+# It sets RETIRED_EPOCH, RETIRED_RELEASE (its latest release, 0 if none),
+# RETIRED_TAG and RETIRED_REASON.
+retire_ceremony() {
+    local restart="$1" check
+    require_clean_ceremony
+    require_up_to_date
+    RETIRED_EPOCH="$(current_epoch)"
+    step "a ceremony (epoch $RETIRED_EPOCH) exists in $DIR/; comparing it with the circuits (compiles every circuit)"
+    check="$(tool check-circuits --dir "$DIR" --jobs "$JOBS")" || die "could not compare the circuits with the ceremony"
+    if [[ "$check" = "unchanged" ]]; then
+        [[ "$restart" = "1" ]] \
+            || die "the circuits still match the ceremony in $DIR/: contribute to it (./ceremony.sh join) instead of starting over, or pass --restart to retire it anyway"
+        RETIRED_REASON="restarted with unchanged circuits"
+    else
+        RETIRED_REASON="${check#changed: }"
+    fi
+    step "retiring epoch $RETIRED_EPOCH: $RETIRED_REASON"
+    RETIRED_RELEASE="$(info latest_release)"
+    if [[ "$(info pending)" = "1" ]]; then
+        step "WARNING: epoch $RETIRED_EPOCH has contributions that were never released; they are discarded"
+    fi
+    RETIRED_TAG="$DIR-epoch-$RETIRED_EPOCH"
+    tag_epoch "$RETIRED_TAG" "$RETIRED_REASON"
+    git rm -r -q -- "$DIR" || die "could not remove $DIR/"
+    rm -rf "$DIR"
+    use_branch "restart-epoch-$(( RETIRED_EPOCH + 1 ))"
 }
 
 # --- drand ----------------------------------------------------------------
@@ -345,30 +437,76 @@ cmd_round_at() {
 }
 
 cmd_init() {
-    local ptau=""
+    local ptau="" restart=0
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --ptau) ptau="$2"; shift 2 ;;
             --key) KEY="$2"; shift 2 ;;
+            --restart) restart=1; shift ;;
+            --jobs) JOBS="$2"; shift 2 ;;
+            --push) PUSH=1; shift ;;
             *) die "init: unknown option $1" ;;
         esac
     done
-    [[ ! -e "$DIR/manifest.json" ]] || die "a ceremony already exists in $DIR/"
     require_key
 
+    RETIRED_EPOCH=""
+    if [[ -e "$DIR/manifest.json" ]]; then
+        retire_ceremony "$restart"
+    elif [[ "$restart" = "1" ]]; then
+        die "--restart: there is no ceremony in $DIR/ to retire"
+    fi
+    local epoch=$(( ${RETIRED_EPOCH:-0} + 1 )) ok=1
+
+    # On failure or Ctrl+C, put back the retired ceremony (or remove the
+    # partial new one).
+    trap 'undo_init; die "interrupted; nothing was committed"' INT TERM
     if [[ "$DEMO" = "1" ]] && [[ -z "$ptau" ]]; then
-        step "starting a DEMO ceremony with an insecure local phase 1"
-        tool init --dir "$DIR"
+        step "starting a DEMO ceremony (epoch $epoch) with an insecure local phase 1"
+        tool init --dir "$DIR" --epoch "$epoch" || ok=0
     else
         [[ -n "$ptau" ]] || ptau="$(fetch_ptau)"
-        step "starting the ceremony: importing phase 1 from $(basename "$ptau") (compiles every circuit)"
-        tool init --dir "$DIR" --ptau "$ptau" --ptau-source "$PTAU_URL"
+        step "starting the ceremony (epoch $epoch): importing phase 1 from $(basename "$ptau") (compiles every circuit)"
+        tool init --dir "$DIR" --epoch "$epoch" --ptau "$ptau" --ptau-source "$PTAU_URL" || ok=0
     fi
+    trap - INT TERM
+    [[ "$ok" = "1" ]] || { undo_init; die "init failed; nothing was committed"; }
     mkdir -p "$DIR/contributors" "$DIR/attestations"
     : > "$DIR/contributors/allowed_signers"
     ensure_lfs_rule
-    commit_signed "ceremony: start, phase 1 from $(info phase1_source)" "$DIR" .gitattributes
-    step "ceremony started. Next: ./ceremony.sh register --name <you>, then contribute"
+
+    if [[ -n "$RETIRED_EPOCH" ]]; then
+        commit_signed "ceremony: start epoch $epoch, phase 1 from $(info phase1_source)
+
+Retires epoch $RETIRED_EPOCH, whose last commit is tagged $RETIRED_TAG:
+$RETIRED_REASON." "$DIR" .gitattributes
+    else
+        commit_signed "ceremony: start, phase 1 from $(info phase1_source)" "$DIR" .gitattributes
+    fi
+    maybe_push
+    if [[ -n "$RETIRED_EPOCH" ]]; then
+        if [[ "$PUSH" = "1" ]]; then
+            git push origin "refs/tags/$RETIRED_TAG" || die "could not push tag $RETIRED_TAG"
+            step "pushed tag $RETIRED_TAG"
+        else
+            step "tag $RETIRED_TAG not pushed. When ready: git push origin $RETIRED_TAG"
+        fi
+        if [[ "$RETIRED_RELEASE" != "0" ]]; then
+            step "$OUT/ still holds epoch $RETIRED_EPOCH's release v$RETIRED_RELEASE, which does not match the new circuits; this epoch's first finalize replaces it"
+        fi
+    fi
+    step "ceremony started. Next: ./ceremony.sh join --name <you> (or register, then contribute)"
+}
+
+# undo_init removes what an unfinished init wrote, restoring a retired
+# ceremony. The retired epoch's tag is kept: it marks a real commit, and a
+# rerun reuses it.
+undo_init() {
+    if [[ -n "$RETIRED_EPOCH" ]]; then
+        restore_ceremony
+    else
+        rm -rf "$DIR"
+    fi
 }
 
 cmd_register() {
@@ -481,7 +619,7 @@ ${note:-None.}
 EOF
 
     use_branch "contribution-$id"
-    commit_signed "ceremony: contribution $(printf '%04d' "$index") by $name (next release: drand round $round)" "$DIR"
+    commit_signed "ceremony: $(epoch_words)contribution $(printf '%04d' "$index") by $name (next release: drand round $round)" "$DIR"
     maybe_push
     cat >&2 <<EOF
 
@@ -547,9 +685,9 @@ cmd_finalize() {
         SKIP_CONTRACTS_COPY=1 ./convert_verifiers.sh >/dev/null
     fi
     trap - INT TERM
-    commit_signed "ceremony: release v$version (contributions 1-$(info contributions), drand round $round)" "$DIR" "$OUT"
+    commit_signed "ceremony: $(epoch_words)release v$version (contributions 1-$(info contributions), drand round $round)" "$DIR" "$OUT"
     maybe_push
-    step "released v$version. Next: ./ceremony.sh verify, then ./ceremony.sh copy-verifiers"
+    step "released $(epoch_words)v$version. Next: ./ceremony.sh verify, then ./ceremony.sh copy-verifiers"
 }
 
 cmd_verify() {
@@ -769,13 +907,14 @@ cmd_copy_verifiers() {
 
 # contracts_use_branch DIR VERSION puts the contracts repository at DIR on the
 # branch this repository is on, so both pull requests share a name. When this
-# repository is on the default branch, both use ceremony/release-vVERSION.
+# repository is on the default branch, both use ceremony/release-vVERSION
+# (ceremony/eN-release-vVERSION from epoch 2 on).
 contracts_use_branch() {
     local contracts="$1" branch
     branch="$(git branch --show-current)"
     [[ -n "$branch" ]] || die "this repository is not on a branch (detached HEAD)"
     if [[ "$branch" = "$DEFAULT_BRANCH" ]] || [[ "$branch" = "master" ]]; then
-        branch="ceremony/release-v$2"
+        branch="ceremony/$(epoch_prefix)release-v$2"
     fi
     [[ "$(git -C "$contracts" branch --show-current)" != "$branch" ]] || return 0
     if git -C "$contracts" rev-parse -q --verify "refs/heads/$branch" >/dev/null \
@@ -797,9 +936,9 @@ commit_contracts() {
         return 0
     fi
     git -C "$contracts" commit -q -F - -- "$base" <<EOF || die "commit failed in $contracts"
-chore(enygma): verifiers from trusted-setup ceremony release v$version
+chore(enygma): verifiers from trusted-setup ceremony $(epoch_words)release v$version
 
-Release v$version of the phase 2 ceremony in rayls-sovereign-gnark-api
+Release v$version of the $(epoch_words)phase 2 ceremony in rayls-sovereign-gnark-api
 ($(tool releases --dir "$DIR" 2>/dev/null | awk -F'\t' -v v="$version" '$1 == v {print "contributions 1-" $2 ", beacon " $3}')).
 Only the verifying-key constants change.
 EOF

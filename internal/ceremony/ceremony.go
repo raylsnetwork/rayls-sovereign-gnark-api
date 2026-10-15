@@ -55,7 +55,13 @@ type InitOptions struct {
 	PtauSource string
 	// Demo generates an insecure phase 1 locally instead, for rehearsals.
 	Demo bool
+	// Epoch numbers a restarted ceremony; 0 and 1 both mean the first.
+	Epoch int
 }
+
+// ErrCircuitsChanged reports that the code compiles to circuits other than
+// the ones the ceremony was started for, which voids its contributions.
+var ErrCircuitsChanged = errors.New("the circuit code differs from the ceremony's")
 
 var namePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,39}$`)
 
@@ -75,8 +81,12 @@ func (c *Ceremony) Init(opts InitOptions) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
+	if opts.Epoch < 0 {
+		return nil, fmt.Errorf("epoch %d is negative", opts.Epoch)
+	}
 	m := &Manifest{
 		Version: manifestVersion,
+		Epoch:   opts.Epoch,
 		Curve:   "bn254",
 		Gnark:   gnarkVersion(),
 		Phase2:  Phase2Record{Contributions: []Contribution{}, Releases: []Release{}},
@@ -504,22 +514,42 @@ func (c *Ceremony) checkCircuits(m *Manifest) ([]*compiled, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := matchCircuits(m, circuits); err != nil {
+		return nil, err
+	}
+	return circuits, nil
+}
+
+// CheckCircuits compiles the circuits and compares them with the manifest. It
+// returns an error wrapping ErrCircuitsChanged if they differ, so the
+// ceremony has to restart, and any other error if they cannot be compared.
+func (c *Ceremony) CheckCircuits() error {
+	m, err := loadManifest(c.Dir)
+	if err != nil {
+		return err
+	}
+	_, err = c.checkCircuits(m)
+	return err
+}
+
+// matchCircuits requires the compiled circuits to be exactly the manifest's.
+func matchCircuits(m *Manifest, circuits []*compiled) error {
 	if len(circuits) != len(m.Circuits) {
-		return nil, fmt.Errorf("the code has %d circuits, the manifest records %d", len(circuits), len(m.Circuits))
+		return fmt.Errorf("the code has %d circuits, the manifest records %d: %w", len(circuits), len(m.Circuits), ErrCircuitsChanged)
 	}
 	for i, cc := range circuits {
 		rec := m.Circuits[i]
 		if cc.Name != rec.Name || cc.Verifier != rec.Verifier {
-			return nil, fmt.Errorf("circuit %d is %s/%s, the manifest records %s/%s", i, cc.Name, cc.Verifier, rec.Name, rec.Verifier)
+			return fmt.Errorf("circuit %d is %s/%s, the manifest records %s/%s: %w", i, cc.Name, cc.Verifier, rec.Name, rec.Verifier, ErrCircuitsChanged)
 		}
 		if cc.Hash != rec.R1CSSHA256 {
-			return nil, fmt.Errorf("circuit %s compiles to R1CS %s, the manifest records %s: the circuit code differs from the ceremony's", cc.Name, cc.Hash, rec.R1CSSHA256)
+			return fmt.Errorf("circuit %s compiles to R1CS %s, the manifest records %s: %w", cc.Name, cc.Hash, rec.R1CSSHA256, ErrCircuitsChanged)
 		}
 		if cc.Power > m.Phase1.Power {
-			return nil, fmt.Errorf("circuit %s needs 2^%d, phase 1 is 2^%d", cc.Name, cc.Power, m.Phase1.Power)
+			return fmt.Errorf("circuit %s needs 2^%d, phase 1 is 2^%d: %w", cc.Name, cc.Power, m.Phase1.Power, ErrCircuitsChanged)
 		}
 	}
-	return circuits, nil
+	return nil
 }
 
 func (c *Ceremony) logf(format string, args ...any) {

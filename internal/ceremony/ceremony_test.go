@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"io"
 	"math/big"
 	"os"
@@ -287,6 +288,9 @@ func TestCeremonyVerifyRejectsTampering(t *testing.T) {
 func TestCeremonyRejectsChangedCircuits(t *testing.T) {
 	t.Parallel()
 	c, _ := newCeremony(t)
+	if err := c.CheckCircuits(); err != nil {
+		t.Fatalf("unchanged circuits: %v", err)
+	}
 	changed := testCircuits()
 	changed[1].New = func() frontend.Circuit { return &squareChain{n: 101} }
 	c.Circuits = changed
@@ -295,6 +299,59 @@ func TestCeremonyRejectsChangedCircuits(t *testing.T) {
 	}
 	if err := c.Verify("", ""); err == nil {
 		t.Fatal("verify accepted changed circuits")
+	}
+	if err := c.CheckCircuits(); !errors.Is(err, ErrCircuitsChanged) {
+		t.Fatalf("check of changed circuits: err = %v, want ErrCircuitsChanged", err)
+	}
+	c.Circuits = testCircuits()[:1]
+	if err := c.CheckCircuits(); !errors.Is(err, ErrCircuitsChanged) {
+		t.Fatalf("check with a circuit removed: err = %v, want ErrCircuitsChanged", err)
+	}
+}
+
+func TestCheckCircuitsWithoutCeremony(t *testing.T) {
+	t.Parallel()
+	c := &Ceremony{Dir: filepath.Join(t.TempDir(), "none"), Circuits: testCircuits()}
+	if err := c.CheckCircuits(); err == nil || errors.Is(err, ErrCircuitsChanged) {
+		t.Fatalf("err = %v, want a missing-ceremony error", err)
+	}
+}
+
+func TestCeremonyEpoch(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		epoch   int
+		want    int
+		wantErr bool
+	}{
+		{name: "default is epoch 1", epoch: 0, want: 1},
+		{name: "explicit epoch 1", epoch: 1, want: 1},
+		{name: "restarted", epoch: 3, want: 3},
+		{name: "negative", epoch: -1, wantErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			c := &Ceremony{Dir: filepath.Join(t.TempDir(), "ceremony"), Circuits: testCircuits()}
+			_, err := c.Init(InitOptions{Demo: true, Epoch: tc.epoch})
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("init accepted a negative epoch")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			m, err := Load(c.Dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := m.CurrentEpoch(); got != tc.want {
+				t.Fatalf("epoch %d, want %d", got, tc.want)
+			}
+		})
 	}
 }
 

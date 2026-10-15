@@ -1,10 +1,11 @@
 // Command ceremony runs the perpetual Groth16 trusted setup for the production
 // circuits. See docs/trusted-setup-ceremony.md; ceremony.sh wraps it.
 //
-//	ceremony init        --ptau FILE --ptau-source URL   # import the public phase 1
+//	ceremony init        --ptau FILE --ptau-source URL [--epoch N]  # import the public phase 1
 //	ceremony contribute  --name NAME --beacon-source S    # add to phase 2, announce the next beacon
 //	ceremony finalize    --beacon HEX [--out last_build]  # release new keys
 //	ceremony verify      [--out last_build] [--ptau FILE]  # transcript only; ./ceremony.sh verify also checks signatures and drand
+//	ceremony check-circuits # prints "unchanged", or "changed: REASON" when the ceremony must restart
 //	ceremony status
 //	ceremony info           # machine-readable state, key=value per line
 //	ceremony contributions  # index<TAB>name<TAB>path<TAB>sha256<TAB>beacon per line
@@ -41,7 +42,7 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: ceremony <init|contribute|finalize|verify|status|info|contributions|releases> [flags]")
+		return errors.New("usage: ceremony <init|contribute|finalize|verify|check-circuits|status|info|contributions|releases> [flags]")
 	}
 	cmd, args := args[0], args[1:]
 	fs := flag.NewFlagSet(cmd, flag.ContinueOnError)
@@ -59,12 +60,29 @@ func run(args []string, stdout, stderr io.Writer) error {
 	case "init":
 		ptau := fs.String("ptau", "", "snarkjs powers-of-tau file to import as phase 1")
 		source := fs.String("ptau-source", "", "where the powers-of-tau file came from (URL)")
+		epoch := fs.Int("epoch", 1, "epoch of the new ceremony (one more than the ceremony it replaces)")
 		if err := fs.Parse(args); err != nil {
 			return err
 		}
 		c.Dir, c.Jobs = *dir, *jobs
-		_, err := c.Init(ceremony.InitOptions{PtauPath: *ptau, PtauSource: *source, Demo: demo && *ptau == ""})
+		_, err := c.Init(ceremony.InitOptions{PtauPath: *ptau, PtauSource: *source, Demo: demo && *ptau == "", Epoch: *epoch})
 		return err
+
+	case "check-circuits":
+		if err := fs.Parse(args); err != nil {
+			return err
+		}
+		c.Dir, c.Jobs = *dir, *jobs
+		err := c.CheckCircuits()
+		switch {
+		case err == nil:
+			fmt.Fprintln(stdout, "unchanged")
+		case errors.Is(err, ceremony.ErrCircuitsChanged):
+			fmt.Fprintln(stdout, "changed:", err)
+		default:
+			return err
+		}
+		return nil
 
 	case "contribute":
 		name := fs.String("name", "", "contributor name (lowercase letters, digits, dashes)")
@@ -133,7 +151,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 }
 
 func printStatus(w io.Writer, m *ceremony.Manifest) {
-	fmt.Fprintf(w, "circuits: %d, gnark %s\n", len(m.Circuits), m.Gnark)
+	fmt.Fprintf(w, "epoch %d, circuits: %d, gnark %s\n", m.CurrentEpoch(), len(m.Circuits), m.Gnark)
 	fmt.Fprintf(w, "phase 1: %s (2^%d)\n", m.Phase1.Source, m.Phase1.Power)
 	if m.Phase1.Source == ceremony.DemoPhase1Source {
 		fmt.Fprintln(w, "         WARNING: insecure demo phase 1, never use these keys")
@@ -169,6 +187,7 @@ func printInfo(w io.Writer, m *ceremony.Manifest) {
 	if m.Pending() {
 		pending = "1"
 	}
+	fmt.Fprintf(w, "epoch=%d\n", m.CurrentEpoch())
 	fmt.Fprintf(w, "contributions=%d\n", len(m.Phase2.Contributions))
 	fmt.Fprintf(w, "next_index=%d\n", len(m.Phase2.Contributions)+1)
 	fmt.Fprintf(w, "latest_release=%d\n", latest)
