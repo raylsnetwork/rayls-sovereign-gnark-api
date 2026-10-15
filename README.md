@@ -50,7 +50,7 @@ production keys come from the [trusted-setup ceremony](#-trusted-setup-ceremony)
 Once the ceremony has a release, `generate_keys_verifiers.sh` refuses to overwrite
 its keys; `--force` does it anyway for local experiments, which must not be committed
 (restore with `git checkout -- last_build`). A circuit change for production needs a
-new ceremony (see [docs/trusted-setup-ceremony.md](docs/trusted-setup-ceremony.md)).
+new ceremony: [start it with `./ceremony.sh init`](#starting-over-after-a-circuit-change), which retires the old one.
 
 ```bash
 # A. Generate new development keys and verifiers (local only; do not commit them)
@@ -336,7 +336,8 @@ git switch main && git pull
 ```
 
 **1. `init`: first time only, for the whole repository.** Skip this if `ceremony/manifest.json`
-already exists. It downloads the Perpetual Powers of Tau, imports it as phase 1 and commits:
+already exists, unless the circuits changed (see [below](#starting-over-after-a-circuit-change)).
+It downloads the Perpetual Powers of Tau, imports it as phase 1 and commits:
 
 ```bash
 ./ceremony.sh init
@@ -453,12 +454,32 @@ export CEREMONY_DEMO=1
 To rehearse a second participant, create another key (`ssh-keygen -t ed25519 -f /tmp/other`)
 and run `./ceremony.sh join --name other-bank --key /tmp/other.pub`.
 
+### Starting over after a circuit change
+
+Changing any circuit voids every contribution, so the ceremony starts a new epoch, and everyone
+contributes again. Run `init` on the branch that has the final circuits: it retires the old
+ceremony on its own. On `main` it opens a `ceremony/restart-epoch-N` branch; on any other
+branch (e.g. the one with the circuit change) it commits there, and the whole new ceremony
+happens on that branch.
+
+```bash
+git pull && git lfs pull       # on the branch with the circuit change
+./ceremony.sh init --push      # checks the circuits changed, tags ceremony-epoch-N,
+                               # removes ceremony/, starts epoch N+1
+```
+
+`init` stops if the circuits still match the ceremony (pass `--restart` to start over anyway).
+The old transcript stays in git history under the `ceremony-epoch-N` tag. Then contributors
+run `join` as usual, on that same branch (`git switch BRANCH && git pull` first); the
+verifiers go on a branch of the same name in the contracts repository. The new epoch's first release replaces `last_build/` and the verifiers;
+don't deploy before it. Details: [docs/trusted-setup-ceremony.md](docs/trusted-setup-ceremony.md#epochs-starting-over-after-a-circuit-change).
+
 ### Command reference
 
 | # | Command | What it does | What it commits |
 |---|---|---|---|
 | | `join --name NAME [--contracts DIR] [--beacon-delay MIN] [--no-finalize] [--skip-verify]` | Pulls, then steps 5, 2, 3, 4 and 6, in that order, for a new participant | everything steps 2–4 and 6 commit |
-| 1 | `init [--ptau FILE]` | Imports phase 1 (once per repository) | `ceremony/manifest.json`, phase 1 parameters, the Git LFS rule |
+| 1 | `init [--ptau FILE] [--restart]` | Imports phase 1 (once per repository); after a circuit change, retires the old ceremony and starts the next epoch | `ceremony/manifest.json`, phase 1 parameters, the Git LFS rule; the removal of the old `ceremony/` and the tag `ceremony-epoch-N` |
 | 2 | `register --name NAME [--key PUBKEY]` | Registers your signing key | `ceremony/contributors/NAME.pub`, `allowed_signers` |
 | 3 | `contribute --name NAME [--note TEXT] [--beacon-delay MIN] [--jobs N]` | Adds your phase 2 contribution and announces the next beacon | the contribution, its attestation, the manifest |
 | 4 | `finalize [--wait] [--jobs N]` | Releases keys once the announced beacon is published | `last_build/`, the release record |
@@ -468,7 +489,7 @@ and run `./ceremony.sh join --name other-bank --key /tmp/other.pub`.
 | | `clean` | Removes leftovers of an interrupted run | nothing |
 | | `round-at "YYYY-MM-DD HH:MM UTC"` | Prints the drand round for a time | nothing |
 
-`join`, `register`, `contribute`, `finalize` and `copy-verifiers` also accept `--push`. Run `./ceremony.sh help` for all
+`init`, `join`, `register`, `contribute`, `finalize` and `copy-verifiers` also accept `--push`. Run `./ceremony.sh help` for all
 options; `CEREMONY_JOBS` sets the default for `--jobs` (0, the default, picks it automatically).
 
 ### Tips for contributors

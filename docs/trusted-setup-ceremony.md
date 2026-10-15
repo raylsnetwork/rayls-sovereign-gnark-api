@@ -101,13 +101,47 @@ than whoever made the previous releases. Ideally, every institution or user
 running this repository contributes once.** The first release, with a single
 contributor, rests entirely on that participant.
 
+### Epochs: starting over after a circuit change
+
+Phase 2 is tied to the exact R1CS of every circuit, so a circuit change voids
+every contribution: nothing can be carried over. The ceremony then starts a
+new **epoch** from a fresh phase 2, and every institution has to contribute
+again. `./ceremony.sh init` does the whole switch:
+
+1. compiles the circuits and compares them with `ceremony/manifest.json`
+   (`ceremony check-circuits`). If they still match, it stops: contribute to
+   the existing ceremony instead. `--restart` starts over anyway;
+2. warns if contributions made since the last release are about to be
+   discarded;
+3. makes a signed tag `ceremony-epoch-N` on the last commit of the retiring
+   epoch, with its status in the message;
+4. removes `ceremony/` (on a new `ceremony/restart-epoch-N+1` branch when run
+   from `main`, otherwise on the current branch, where the rest of the new
+   epoch then happens), imports phase 1 again and records `"epoch": N+1` in the new
+   manifest;
+5. commits the removal and the new ceremony as one signed commit.
+
+If any step fails, `ceremony/` is restored and nothing is committed (the tag,
+which marks a real commit, stays and a rerun reuses it).
+
+Nothing is lost: the retired transcript and its releases stay in git history,
+reachable from the tag, so they can still be audited. Contribution and release
+numbers restart at 1. From epoch 2 on, branches are named
+`ceremony/eN-...` and commit messages say "epoch N", so they can't be confused
+with earlier epochs' (e.g. `ceremony/e2-release-v1` in both repositories).
+
+Until the new epoch's first release, `last_build/` keeps the retired epoch's
+keys, which don't match the new circuits: don't deploy in between. Its first
+`finalize` replaces them, and its verifiers replace the old ones in the
+contracts repository.
+
 ### Recorded in git
 
 Every step is a commit under `ceremony/`, signed with the contributor's SSH key:
 
 ```text
 ceremony/
-  manifest.json             # circuits and R1CS hashes, phase 1 source and hashes,
+  manifest.json             # epoch, circuits and R1CS hashes, phase 1 source and hashes,
                             # every contribution, every release and its output hashes
   contributors/             # one SSH public key per contributor + allowed_signers
   attestations/0001-x.md    # signed statement per contribution
@@ -128,7 +162,7 @@ circuit files.
 | Command | What it does |
 |---|---|
 | `join` | For a new participant: `git pull` and `git lfs pull` (and `git pull` in the contracts repository), then `verify`, `register`, `contribute`, `finalize --wait` and (optionally) `copy-verifiers`, in order |
-| `init` | Compiles the 18 circuits, records their R1CS hashes, imports phase 1 |
+| `init` | Compiles the 18 circuits, records their R1CS hashes, imports phase 1. If a ceremony exists and the circuits changed, retires it first (tag, remove) and starts the next epoch |
 | `register` | Adds the contributor's SSH public key to the allowlist |
 | `contribute` | Checks and extends the chain, announces the next beacon, writes an attestation, signed commit |
 | `finalize` | Waits for the announced beacon, releases keys into `last_build/`, converts the verifiers |
