@@ -22,6 +22,7 @@ func TestRunRejectsBadInvocations(t *testing.T) {
 		{"contribute without ceremony", []string{"contribute", "--dir", missing, "--name", "alice", "--beacon-source", "x"}, "run init first"},
 		{"init without ptau", []string{"init", "--dir", missing}, "powers-of-tau"},
 		{"check-circuits without ceremony", []string{"check-circuits", "--dir", missing}, "run init first"},
+		{"write-circuits without ceremony", []string{"write-circuits", "--dir", missing}, "run init first"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

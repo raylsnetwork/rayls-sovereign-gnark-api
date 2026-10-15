@@ -532,6 +532,29 @@ func (c *Ceremony) CheckCircuits() error {
 	return err
 }
 
+// WriteCircuits compiles the circuits, requires them to match the manifest
+// and writes each one's R1CS to outDir/circuits/<Name>.r1cs, the file a
+// release records. Those files are not committed (each machine builds its
+// own), so a checkout can hold missing or stale ones; this rebuilds them from
+// the code before Verify compares outDir with the latest release.
+func (c *Ceremony) WriteCircuits(outDir string) error {
+	m, err := loadManifest(c.Dir)
+	if err != nil {
+		return err
+	}
+	circuits, err := c.checkCircuits(m)
+	if err != nil {
+		return err
+	}
+	for _, cc := range circuits {
+		if _, err := writeObject(filepath.Join(outDir, "circuits", cc.Name+".r1cs"), cc.R1CS); err != nil {
+			return err
+		}
+	}
+	c.logf("wrote %d circuits to %s", len(circuits), filepath.Join(outDir, "circuits"))
+	return nil
+}
+
 // matchCircuits requires the compiled circuits to be exactly the manifest's.
 func matchCircuits(m *Manifest, circuits []*compiled) error {
 	if len(circuits) != len(m.Circuits) {

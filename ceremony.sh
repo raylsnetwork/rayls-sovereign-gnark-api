@@ -98,7 +98,8 @@ Commands, in the order you run them:
   5. verify     [--no-ptau] [--jobs N]
                 Check everything: phase 1 against the powers-of-tau file, every
                 contribution, signatures, attestations, every release's drand
-                beacon, and that $OUT/ matches the latest release.
+                beacon, and that $OUT/ matches the latest release. First
+                rebuilds $OUT/circuits/ (not in git) from the code.
 
   6. copy-verifiers [--contracts DIR] [--push]
                 Copy the release's Solidity verifiers into the contracts
@@ -702,7 +703,15 @@ cmd_verify() {
     require_ceremony
 
     local args=(--dir "$DIR" --jobs "$JOBS")
-    [[ "$(info latest_release)" != "0" ]] && args+=(--out "$OUT")
+    if [[ "$(info latest_release)" != "0" ]]; then
+        # $OUT/circuits/ is not committed: each machine builds its own, so it
+        # may be missing or built from older code. Rebuild it from the code
+        # (which must match the ceremony) before comparing $OUT/ with the release.
+        step "rebuilding $OUT/circuits/ from the code"
+        tool write-circuits --dir "$DIR" --out "$OUT" --jobs "$JOBS" \
+            || die "could not rebuild $OUT/circuits/ (does the code match the ceremony?)"
+        args+=(--out "$OUT")
+    fi
     if [[ "$use_ptau" = "1" ]] && [[ "$(info phase1_source)" != "insecure-demo" ]]; then
         args+=(--ptau "$(fetch_ptau)")
     fi

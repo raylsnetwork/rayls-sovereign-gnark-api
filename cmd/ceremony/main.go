@@ -6,6 +6,7 @@
 //	ceremony finalize    --beacon HEX [--out last_build]  # release new keys
 //	ceremony verify      [--out last_build] [--ptau FILE]  # transcript only; ./ceremony.sh verify also checks signatures and drand
 //	ceremony check-circuits # prints "unchanged", or "changed: REASON" when the ceremony must restart
+//	ceremony write-circuits [--out last_build]  # rebuild <out>/circuits/*.r1cs (not committed) from the code
 //	ceremony status
 //	ceremony info           # machine-readable state, key=value per line
 //	ceremony contributions  # index<TAB>name<TAB>path<TAB>sha256<TAB>beacon per line
@@ -42,7 +43,7 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: ceremony <init|contribute|finalize|verify|check-circuits|status|info|contributions|releases> [flags]")
+		return errors.New("usage: ceremony <init|contribute|finalize|verify|check-circuits|write-circuits|status|info|contributions|releases> [flags]")
 	}
 	cmd, args := args[0], args[1:]
 	fs := flag.NewFlagSet(cmd, flag.ContinueOnError)
@@ -120,6 +121,14 @@ func run(args []string, stdout, stderr io.Writer) error {
 		}
 		fmt.Fprintln(stdout, "ceremony transcript verifies")
 		return nil
+
+	case "write-circuits":
+		out := fs.String("out", "last_build", "directory whose circuits/ to rebuild")
+		if err := fs.Parse(args); err != nil {
+			return err
+		}
+		c.Dir, c.Jobs = *dir, *jobs
+		return c.WriteCircuits(*out)
 
 	case "status", "info", "contributions", "releases":
 		if err := fs.Parse(args); err != nil {

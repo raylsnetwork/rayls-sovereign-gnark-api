@@ -166,7 +166,7 @@ circuit files.
 | `register` | Adds the contributor's SSH public key to the allowlist |
 | `contribute` | Checks and extends the chain, announces the next beacon, writes an attestation, signed commit |
 | `finalize` | Waits for the announced beacon, releases keys into `last_build/`, converts the verifiers |
-| `verify` | Checks phase 1 against the `.ptau`, every contribution, every release (re-derived), every beacon against drand, every signature against the registered key, and `last_build/` against the latest release |
+| `verify` | Checks phase 1 against the `.ptau`, every contribution, every release (re-derived), every beacon against drand, every signature against the registered key, and `last_build/` against the latest release. `last_build/circuits/` is not committed (each machine builds its own), so it first rebuilds it from the code, which must match the ceremony |
 | `copy-verifiers` | Copies the latest release's verifiers into the contracts repository and commits them there |
 | `status` | Shows phase 1, contributions and releases |
 | `clean` | Removes leftovers of an interrupted run |

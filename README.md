@@ -280,7 +280,7 @@ contracts repository, so it always starts from the latest ceremony state.
 
 | Step | What `join` does | Time |
 |---|---|---|
-| 1. verify | Checks everything done so far, so you don't have to trust it (`--skip-verify` skips it; `contribute` still checks every earlier contribution) | ~20 min |
+| 1. verify | Checks everything done so far, so you don't have to trust it (`--skip-verify` skips it; `contribute` still checks every earlier contribution). Rebuilds `last_build/circuits/`, which is not in git, from the code first | ~20 min |
 | 2. register | Registers your SSH key under `--name`; skipped if it already is | seconds |
 | 3. contribute | Adds your randomness and announces a drand round `--beacon-delay` minutes ahead (default 45) | ~20 min |
 | 4. finalize | Waits for that round, then releases keys that include your contribution into `last_build/` | the rest of the delay, then ~20 min |
@@ -483,7 +483,7 @@ don't deploy before it. Details: [docs/trusted-setup-ceremony.md](docs/trusted-s
 | 2 | `register --name NAME [--key PUBKEY]` | Registers your signing key | `ceremony/contributors/NAME.pub`, `allowed_signers` |
 | 3 | `contribute --name NAME [--note TEXT] [--beacon-delay MIN] [--jobs N]` | Adds your phase 2 contribution and announces the next beacon | the contribution, its attestation, the manifest |
 | 4 | `finalize [--wait] [--jobs N]` | Releases keys once the announced beacon is published | `last_build/`, the release record |
-| 5 | `verify [--no-ptau] [--jobs N]` | Checks everything | nothing |
+| 5 | `verify [--no-ptau] [--jobs N]` | Checks everything (first rebuilds `last_build/circuits/`, which is not in git) | nothing |
 | 6 | `copy-verifiers [--contracts DIR]` | Copies the release's verifiers into the contracts repository | the verifiers, in the contracts repository |
 | | `status` | Shows phase 1, contributions and releases | nothing |
 | | `clean` | Removes leftovers of an interrupted run | nothing |

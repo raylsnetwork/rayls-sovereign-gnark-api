@@ -309,6 +309,52 @@ func TestCeremonyRejectsChangedCircuits(t *testing.T) {
 	}
 }
 
+// TestWriteCircuitsRepairsLocalBuild covers a checkout whose uncommitted
+// circuits/*.r1cs are stale or missing: verify fails until WriteCircuits
+// rebuilds them from the code.
+func TestWriteCircuitsRepairsLocalBuild(t *testing.T) {
+	t.Parallel()
+	c, _ := newCeremony(t)
+	out := twoReleases(t, c)
+	name := testCircuits()[0].Name
+	r1cs := filepath.Join(out, "circuits", name+".r1cs")
+
+	tests := []struct {
+		name    string
+		breakIt func(t *testing.T)
+	}{
+		{"stale", func(t *testing.T) {
+			if err := os.WriteFile(r1cs, []byte("built from older code"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"missing", func(t *testing.T) {
+			if err := os.RemoveAll(filepath.Join(out, "circuits")); err != nil {
+				t.Fatal(err)
+			}
+		}},
+	}
+	for _, tc := range tests {
+		// Sequential: the cases share one output directory.
+		tc.breakIt(t)
+		if err := c.Verify(out, ""); err == nil {
+			t.Fatalf("%s: verify accepted a broken local build", tc.name)
+		}
+		if err := c.WriteCircuits(out); err != nil {
+			t.Fatalf("%s: write circuits: %v", tc.name, err)
+		}
+		if err := c.Verify(out, ""); err != nil {
+			t.Fatalf("%s: verify after rebuilding: %v", tc.name, err)
+		}
+	}
+
+	c.Circuits = testCircuits()
+	c.Circuits[1].New = func() frontend.Circuit { return &squareChain{n: 101} }
+	if err := c.WriteCircuits(t.TempDir()); !errors.Is(err, ErrCircuitsChanged) {
+		t.Fatalf("write with changed circuits: err = %v, want ErrCircuitsChanged", err)
+	}
+}
+
 func TestCheckCircuitsWithoutCeremony(t *testing.T) {
 	t.Parallel()
 	c := &Ceremony{Dir: filepath.Join(t.TempDir(), "none"), Circuits: testCircuits()}
