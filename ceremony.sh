@@ -841,6 +841,13 @@ cmd_clean() {
     step "removed the uncommitted changes above"
 }
 
+# abs_dir DIR prints DIR as an absolute path. Paths into the contracts
+# repository go to git -C, which would read a relative path against that
+# repository instead of the current directory.
+abs_dir() {
+    (cd "$1" 2>/dev/null && pwd) || die "$1 is not a directory"
+}
+
 # contracts_verifier_dir DIR prints where the verifiers live in the contracts
 # repository at DIR, or fails if DIR does not look like it.
 contracts_verifier_dir() {
@@ -853,7 +860,8 @@ contracts_verifier_dir() {
 # prepare_contracts DIR fails early if the contracts repository at DIR is
 # missing or has uncommitted verifier changes, and pulls it.
 prepare_contracts() {
-    local repo="$1" base
+    local repo base
+    repo="$(abs_dir "$1")"
     base="$(contracts_verifier_dir "$repo")"
     [[ -z "$(git -C "$repo" status --porcelain -- "$base")" ]] \
         || die "uncommitted changes under $base: commit or discard them first"
@@ -882,6 +890,7 @@ cmd_copy_verifiers() {
         esac
     done
     [[ "$DEMO" = "0" ]] || die "demo verifiers are not for the contracts repository"
+    contracts="$(abs_dir "$contracts")"
     local version
     version="$(info latest_release)"
     [[ "$version" != "0" ]] || die "there is no release yet: run ./ceremony.sh finalize first"
@@ -930,7 +939,7 @@ contracts_use_branch() {
 # the contracts repository at DIR, and pushes with --push.
 commit_contracts() {
     local contracts="$1" base="$2" version="$3"
-    git -C "$contracts" add -- "$base"
+    git -C "$contracts" add -- "$base" || die "git add failed in $contracts"
     if git -C "$contracts" diff --cached --quiet -- "$base"; then
         step "$contracts already has the release v$version verifiers; nothing to commit"
         return 0
