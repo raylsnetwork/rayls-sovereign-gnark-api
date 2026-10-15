@@ -174,7 +174,6 @@ func setErc721WitnessOptimized(witness *Erc721OwnershipCircuit, request *Erc721O
 
 		// 3. Compute Nullifier
 		nullifier := computeNullifier(request.KeyPairsIn.PrivateKey, request.MerkleProofs.Indices)
-		fmt.Printf("  Computed Nullifier: %s\n", nullifier)
 		witness.Nullifiers[i] = parseBigIntOptimized(nullifier)
 
 		// Set path elements

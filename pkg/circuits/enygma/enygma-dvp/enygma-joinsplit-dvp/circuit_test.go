@@ -55,6 +55,10 @@ func TestDummyNullifierMatchesContract(t *testing.T) {
 	if got := dvptest.DummyNullifier(t); got.Cmp(want) != 0 {
 		t.Fatalf("Poseidon(0,0) = %s, contract dummyNullifier = %s", got, want)
 	}
+	// The circuits reject a real input carrying primitives.DummyNullifier.
+	if primitives.DummyNullifier.Cmp(want) != 0 {
+		t.Fatalf("primitives.DummyNullifier = %s, contract dummyNullifier = %s", primitives.DummyNullifier, want)
+	}
 }
 
 func BenchmarkJoinSplitProve(b *testing.B) {
