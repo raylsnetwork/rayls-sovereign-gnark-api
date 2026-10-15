@@ -23,11 +23,10 @@ type WithdrawEnygmak6Circuit struct {
 	BlockNumber               frontend.Variable     `gnark:",public"`
 	AnonymitySet              [k6]frontend.Variable `gnark:",public"`
 	MessageTags               [k6]frontend.Variable `gnark:",public"`
-	Hashes                    [10]frontend.Variable `gnark:",public"`
-	SkDeposits                [10]frontend.Variable
-	VPerDeposit               [10]frontend.Variable
+	PaymentCommitment         frontend.Variable     `gnark:",public"`
+	PaymentSecretKey          frontend.Variable
+	PaymentSalt               frontend.Variable
 	Address                   frontend.Variable
-	SaltsIn                   [10]frontend.Variable
 }
 
 type WithdrawEnygmak6Request struct {
@@ -47,11 +46,10 @@ type WithdrawEnygmak6Request struct {
 	BlockNumber               string        `json:"block_number" binding:"required"`
 	AnonymitySet              [k6]string    `json:"anonymity_set" binding:"required,len=6"`
 	MessageTags               [k6]string    `json:"message_tags" binding:"required,len=6"`
-	Hashes                    [10]string    `json:"hashes" binding:"required"`
-	SkDeposits                [10]string    `json:"sk_deposits" binding:"required"`
-	VPerDeposit               [10]string    `json:"v_per_deposit" binding:"required"`
+	PaymentCommitment         string        `json:"payment_commitment" binding:"required"`
+	PaymentSecretKey          string        `json:"payment_secret_key" binding:"required"`
+	PaymentSalt               string        `json:"payment_salt" binding:"required"`
 	Address                   string        `json:"address" binding:"required"`
-	SaltsIn                   [10]string    `json:"saltsIn" binding:"required"`
 }
 
 type WithdrawResponseAPI struct {
@@ -79,11 +77,10 @@ func (circuit *WithdrawEnygmak6Circuit) Define(api frontend.API) error {
 		circuit.BlockNumber,
 		circuit.AnonymitySet[:],
 		circuit.MessageTags[:],
-		circuit.Hashes[:],
-		circuit.SkDeposits[:],
-		circuit.VPerDeposit[:],
-		circuit.Address,
-		circuit.SaltsIn[:])
+		circuit.PaymentCommitment,
+		circuit.PaymentSecretKey,
+		circuit.PaymentSalt,
+		circuit.Address)
 }
 
 func convertArrayToSlice6(arr [6][2]frontend.Variable) [][2]frontend.Variable {

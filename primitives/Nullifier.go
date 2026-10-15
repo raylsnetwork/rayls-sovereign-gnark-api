@@ -6,10 +6,8 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
+// Nullifier computes Poseidon(privateKey, pathIndex). The output is already a
+// BN254 field element, so it matches ComputeNullifierBN254 without reduction.
 func Nullifier(api frontend.API, privateKey frontend.Variable, pathIndex frontend.Variable) frontend.Variable {
-
-	hasher := pos.Poseidon(api, []frontend.Variable{privateKey, pathIndex})
-	nullifier, _ := api.NewHint(ModHintBN254, 2, hasher)
-	return nullifier[0]
-
+	return pos.Poseidon(api, []frontend.Variable{privateKey, pathIndex})
 }

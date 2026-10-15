@@ -113,8 +113,9 @@ This is a **zkSNARK proof generation API** using:
 ### Build & Run Commands
 ```bash
 # Compile circuits and generate keys
-./scripts/compile_circuits_gen_executables.sh
-./scripts/generate_keys_verifiers.sh
+./compile_circuits_gen_executables.sh
+./generate_keys_verifiers.sh   # development keys only; refuses to overwrite a ceremony release
+./convert_verifiers.sh         # convert Solidity verifiers in last_build/ (no keygen)
 
 # Run server locally
 go run cmd/server/main.go
@@ -153,7 +154,7 @@ last_build/          - Compiled artifacts (Git LFS)
 - GOMAXPROCS tuning recommended for production
 
 ### Known Technical Debt
-- **No unit tests** - Add table-driven tests for primitives and circuit logic
+- **Partial test coverage** - Primitives and every circuit family have honest-witness and forged-witness tests (`go test ./...`); handlers and `cmd/` have none
 - **No structured logging** - Migrate from `fmt.Println` to slog with JSON output
 - **No OpenTelemetry** - Add distributed tracing for production observability
 - **Hard-coded config** - Move port and paths to environment variables

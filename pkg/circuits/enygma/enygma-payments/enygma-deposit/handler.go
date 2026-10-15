@@ -1,8 +1,9 @@
 package deposit
 
 import (
-	primitives "github.com/raylsnetwork/rayls-sovereign-gnark-api/primitives"
 	"fmt"
+	"github.com/raylsnetwork/rayls-sovereign-gnark-api/pkg/logsafe"
+	primitives "github.com/raylsnetwork/rayls-sovereign-gnark-api/primitives"
 	"math/big"
 	"net/http"
 	"os"
@@ -355,8 +356,8 @@ func handleK2(c *gin.Context, compiled *CompiledCircuit, totalStart time.Time) {
 	bindTime := time.Since(totalStart)
 
 	if err := validateInputsK2(&request); err != nil {
-		fmt.Printf("Input validation failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
+		fmt.Printf("Input validation failed: %s\n", logsafe.Err(err))
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Input validation failed: " + err.Error(),
 		})
 		return
@@ -368,14 +369,14 @@ func handleK2(c *gin.Context, compiled *CompiledCircuit, totalStart time.Time) {
 
 	response, err := generateProofK2(&witness, compiled, &request)
 	if err != nil {
-		errorMsg := fmt.Sprintf("Failed to generate proof: %v", err)
+		fmt.Printf("Proof generation failed: %s\n", logsafe.Err(err))
+		errorMsg := "Failed to generate proof"
 		if containsConstraintError(err.Error()) {
 			errorMsg += "\nNote: This constraint error suggests input validation issues. The circuit computed different values than provided."
 		}
 
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":     errorMsg,
-			"raw_error": err.Error(),
+			"error": errorMsg,
 		})
 		return
 	}
@@ -398,8 +399,8 @@ func handleK3(c *gin.Context, compiled *CompiledCircuit, totalStart time.Time) {
 	bindTime := time.Since(totalStart)
 
 	if err := validateInputsK3(&request); err != nil {
-		fmt.Printf("Input validation failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
+		fmt.Printf("Input validation failed: %s\n", logsafe.Err(err))
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Input validation failed: " + err.Error(),
 		})
 		return
@@ -411,14 +412,14 @@ func handleK3(c *gin.Context, compiled *CompiledCircuit, totalStart time.Time) {
 
 	response, err := generateProofK3(&witness, compiled, &request)
 	if err != nil {
-		errorMsg := fmt.Sprintf("Failed to generate proof: %v", err)
+		fmt.Printf("Proof generation failed: %s\n", logsafe.Err(err))
+		errorMsg := "Failed to generate proof"
 		if containsConstraintError(err.Error()) {
 			errorMsg += "\nNote: This constraint error suggests input validation issues. The circuit computed different values than provided."
 		}
 
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":     errorMsg,
-			"raw_error": err.Error(),
+			"error": errorMsg,
 		})
 		return
 	}
@@ -441,8 +442,8 @@ func handleK4(c *gin.Context, compiled *CompiledCircuit, totalStart time.Time) {
 	bindTime := time.Since(totalStart)
 
 	if err := validateInputsK4(&request); err != nil {
-		fmt.Printf("Input validation failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
+		fmt.Printf("Input validation failed: %s\n", logsafe.Err(err))
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Input validation failed: " + err.Error(),
 		})
 		return
@@ -454,14 +455,14 @@ func handleK4(c *gin.Context, compiled *CompiledCircuit, totalStart time.Time) {
 
 	response, err := generateProofK4(&witness, compiled, &request)
 	if err != nil {
-		errorMsg := fmt.Sprintf("Failed to generate proof: %v", err)
+		fmt.Printf("Proof generation failed: %s\n", logsafe.Err(err))
+		errorMsg := "Failed to generate proof"
 		if containsConstraintError(err.Error()) {
 			errorMsg += "\nNote: This constraint error suggests input validation issues. The circuit computed different values than provided."
 		}
 
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":     errorMsg,
-			"raw_error": err.Error(),
+			"error": errorMsg,
 		})
 		return
 	}
@@ -484,8 +485,8 @@ func handleK5(c *gin.Context, compiled *CompiledCircuit, totalStart time.Time) {
 	bindTime := time.Since(totalStart)
 
 	if err := validateInputsK5(&request); err != nil {
-		fmt.Printf("Input validation failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
+		fmt.Printf("Input validation failed: %s\n", logsafe.Err(err))
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Input validation failed: " + err.Error(),
 		})
 		return
@@ -497,14 +498,14 @@ func handleK5(c *gin.Context, compiled *CompiledCircuit, totalStart time.Time) {
 
 	response, err := generateProofK5(&witness, compiled, &request)
 	if err != nil {
-		errorMsg := fmt.Sprintf("Failed to generate proof: %v", err)
+		fmt.Printf("Proof generation failed: %s\n", logsafe.Err(err))
+		errorMsg := "Failed to generate proof"
 		if containsConstraintError(err.Error()) {
 			errorMsg += "\nNote: This constraint error suggests input validation issues. The circuit computed different values than provided."
 		}
 
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":     errorMsg,
-			"raw_error": err.Error(),
+			"error": errorMsg,
 		})
 		return
 	}
@@ -527,8 +528,8 @@ func handleK6(c *gin.Context, compiled *CompiledCircuit, totalStart time.Time) {
 	bindTime := time.Since(totalStart)
 
 	if err := validateInputsK6(&request); err != nil {
-		fmt.Printf("Input validation failed: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
+		fmt.Printf("Input validation failed: %s\n", logsafe.Err(err))
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Input validation failed: " + err.Error(),
 		})
 		return
@@ -540,14 +541,14 @@ func handleK6(c *gin.Context, compiled *CompiledCircuit, totalStart time.Time) {
 
 	response, err := generateProofK6(&witness, compiled, &request)
 	if err != nil {
-		errorMsg := fmt.Sprintf("Failed to generate proof: %v", err)
+		fmt.Printf("Proof generation failed: %s\n", logsafe.Err(err))
+		errorMsg := "Failed to generate proof"
 		if containsConstraintError(err.Error()) {
 			errorMsg += "\nNote: This constraint error suggests input validation issues. The circuit computed different values than provided."
 		}
 
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":     errorMsg,
-			"raw_error": err.Error(),
+			"error": errorMsg,
 		})
 		return
 	}

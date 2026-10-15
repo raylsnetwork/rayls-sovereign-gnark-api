@@ -1,8 +1,9 @@
 package erc1155_joinsplit
 
 import (
-	primitives "github.com/raylsnetwork/rayls-sovereign-gnark-api/primitives"
 	"fmt"
+	"github.com/raylsnetwork/rayls-sovereign-gnark-api/pkg/logsafe"
+	primitives "github.com/raylsnetwork/rayls-sovereign-gnark-api/primitives"
 	"math/big"
 	"net/http"
 	"os"
@@ -112,7 +113,7 @@ func NewHandler(pkPath, vkPath, r1csPath string) gin.HandlerFunc {
 		bindTime := time.Since(totalStart)
 
 		if err := validateErc1155Inputs(&request); err != nil {
-			fmt.Printf("Input validation failed: %v\n", err)
+			fmt.Printf("Input validation failed: %s\n", logsafe.Err(err))
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "Input validation failed: " + err.Error(),
 			})
@@ -125,14 +126,14 @@ func NewHandler(pkPath, vkPath, r1csPath string) gin.HandlerFunc {
 
 		response, err := generateErc1155Proof(&witness, compiled, &request)
 		if err != nil {
-			errorMsg := fmt.Sprintf("Failed to generate proof: %v", err)
+			fmt.Printf("Proof generation failed: %s\n", logsafe.Err(err))
+			errorMsg := "Failed to generate proof"
 			if containsConstraintError(err.Error()) {
 				errorMsg += "\nNote: This constraint error suggests input validation issues. The circuit computed different values than provided."
 			}
 
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":     errorMsg,
-				"raw_error": err.Error(),
+				"error": errorMsg,
 			})
 			return
 		}
@@ -217,7 +218,6 @@ func setErc1155WitnessOptimized(witness *Erc1155JoinSplitCircuit, request *Erc11
 
 		// 3. Compute Nullifier
 		nullifier := computeNullifier(request.KeyPairsIn[i].PrivateKey, request.MerkleProofs[i].Indices)
-		//fmt.Printf("  Computed Nullifier: %s\n", nullifier)
 		witness.Nullifiers[i] = parseBigIntOptimized(nullifier)
 
 		// Set path elements

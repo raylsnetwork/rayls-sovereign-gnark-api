@@ -8,16 +8,14 @@ const nInputs = 10
 const mOutputs = 2
 const merkleTreeDepth = 8
 
-var rangeCircuit = frontend.Variable("1000000000000000000000000000000000000")
-
 type Erc1155JoinSplitCircuit struct {
 	// Public signals
-	NftCommitment  frontend.Variable           `gnark:",public"`
-	MerkleRoots    [nInputs]frontend.Variable  `gnark:",public"`
-	Nullifiers     [nInputs]frontend.Variable  `gnark:",public"`
-	TreeNumbers    [nInputs]frontend.Variable  `gnark:",public"`
+	NftCommitment    frontend.Variable           `gnark:",public"`
+	MerkleRoots      [nInputs]frontend.Variable  `gnark:",public"`
+	Nullifiers       [nInputs]frontend.Variable  `gnark:",public"`
+	TreeNumbers      [nInputs]frontend.Variable  `gnark:",public"`
 	CommitmentsOut   [mOutputs]frontend.Variable `gnark:",public"`
-	RevertCommitment frontend.Variable          `gnark:",public"`
+	RevertCommitment frontend.Variable           `gnark:",public"`
 
 	// Private signals
 	PrivateKeys            [nInputs]frontend.Variable
@@ -60,9 +58,9 @@ type Erc1155JoinSplitRequest struct {
 	TreeNumbers            []int         `json:"treeNumbers" binding:"required"`
 	Erc1155ContractAddress string        `json:"erc1155Address" binding:"required"`
 	Erc1155TokenId         string
-	SaltsIn                []string      `json:"saltsIn"`
-	SaltsOut               []string      `json:"saltsOut" binding:"required,len=2"`
-	RevertSalt             string        `json:"revertSalt" binding:"required"`
+	SaltsIn                []string `json:"saltsIn"`
+	SaltsOut               []string `json:"saltsOut" binding:"required,len=2"`
+	RevertSalt             string   `json:"revertSalt" binding:"required"`
 }
 
 type Erc1155JoinSplitResponseAPI struct {
@@ -78,6 +76,7 @@ func (circuit *Erc1155JoinSplitCircuit) Define(api frontend.API) error {
 		circuit.NftCommitment,
 		circuit.MerkleRoots[:],
 		circuit.Nullifiers[:],
+		circuit.TreeNumbers[:],
 		circuit.CommitmentsOut[:],
 		circuit.PrivateKeys[:],
 		circuit.SaltsIn[:],
